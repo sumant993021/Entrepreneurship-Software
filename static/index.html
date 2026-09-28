@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E&DM Group Project Manager</title>
+  <meta name="description" content="College project manager for Entrepreneurship & Digital Marketing supporting multi-department, multi-class, division, and batch assignments for faculty and student groups.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=5">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand">
+          <div class="brand-badge">E&DM</div>
+          <div class="brand-info">
+            <h1>Group Project Manager</h1>
+            <span class="sub-title">Multi-Department • Class • Division • Batch Allocation</span>
+          </div>
+        </div>
+
+        <nav class="nav-links" id="mainNav" style="display: none;">
+          <button class="nav-item active" id="tabMyGroupBtn" onclick="switchTab('my-group')">
+            <i class="fa-solid fa-layer-group"></i>
+            <span>My Project Dashboard</span>
+          </button>
+          <button class="nav-item" id="tabAdminGroupsBtn" onclick="switchTab('admin-groups')" style="display: none;">
+            <i class="fa-solid fa-chalkboard-user"></i>
+            <span>Faculty Review: All Steps</span>
+          </button>
+          <button class="nav-item" id="tabLeaderboardBtn" onclick="switchTab('leaderboard')">
+            <i class="fa-solid fa-trophy"></i>
+            <span>Leaderboard</span>
+          </button>
+          <button class="nav-item" id="tabAdminUsersBtn" onclick="switchTab('admin-users')" style="display: none;">
+            <i class="fa-solid fa-user-shield"></i>
+            <span>Faculty Settings</span>
+          </button>
+        </nav>
+
+        <div class="header-actions">
+          <div class="live-pill" id="liveIndicator" title="WebSocket Live Updates">
+            <span class="pulse-dot"></span>
+            <span class="live-text">Live Sync</span>
+          </div>
+
+          <div class="user-profile-badge" id="userBadge" style="display: none;">
+            <div class="user-avatar" id="userAvatar">U</div>
+            <div class="user-meta">
+              <span class="user-name" id="userNameDisplay">User</span>
+              <span class="role-tag" id="userRoleDisplay">Student</span>
+            </div>
+            <button class="btn-icon" id="logoutBtn" onclick="logout()" title="Sign Out">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <main class="main-content">
+      <!-- 1. AUTH SCREEN -->
+      <section id="authSection" class="content-section">
+        <div class="auth-card-wrapper">
+          <div class="auth-card auth-card-wide">
+            <div class="auth-header">
+              <div class="auth-icon-circle">
+                <i class="fa-solid fa-graduation-cap"></i>
+              </div>
+              <h2 id="authTitle">E&DM Project Portal</h2>
+              <p id="authSubtitle">Select your role to sign in or register your department assignments</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+              <div class="form-group">
+                <label for="loginEmail">College Email</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-envelope"></i>
+                  <input type="email" id="loginEmail" required placeholder="your.email@college.edu" autocomplete="email">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-lock"></i>
+                  <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="loginSubmitBtn">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
+              </button>
+            </form>
+
+            <!-- Register Selector (Faculty vs Student/Leader) -->
+            <div id="registerRoleSelector" style="display: none; margin-bottom: 1.25rem;">
+              <div class="role-toggle-tabs">
+                <button type="button" class="role-tab active" id="roleTabStudent" onclick="switchRegRole('student')">
+                  <i class="fa-solid fa-user-graduate"></i> Student / Group Leader
+                </button>
+                <button type="button" class="role-tab" id="roleTabFaculty" onclick="switchRegRole('faculty')">
+                  <i class="fa-solid fa-chalkboard-user"></i> Faculty (Multi-Department)
+                </button>
+              </div>
+            </div>
+
+            <!-- Student Registration Form -->
+            <form id="studentRegisterForm" class="auth-form" style="display: none;" onsubmit="handleStudentRegister(event)">
+              <div class="form-group">
+                <label for="stuRegName">Full Name</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-user"></i>
+                  <input type="text" id="stuRegName" required placeholder="e.g. Student Name">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="stuRegEmail">College Email Address</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-envelope"></i>
+                  <input type="email" id="stuRegEmail" required placeholder="student.name@college.edu">
+                </div>
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="stuRegDept">Department *</label>
+                  <select id="stuRegDept" required>
+                    <option value="ECS">ECS</option>
+                    <option value="Instrumentation">Instrumentation</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="stuRegClass">Class *</label>
+                  <select id="stuRegClass" required>
+                    <option value="Third Year">Third Year (TE)</option>
+                    <option value="Final Year">Final Year (BE)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="stuRegDiv">Division *</label>
+                  <select id="stuRegDiv" required>
+                    <option value="Div A">Division A</option>
+                    <option value="Div B">Division B</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="stuRegBatch">Assigned Lab Batch *</label>
+                  <select id="stuRegBatch" required>
+                    <option value="Batch 1">Batch 1</option>
+                    <option value="Batch 2">Batch 2</option>
+                    <option value="Batch 3">Batch 3</option>
+                    <option value="Batch 4">Batch 4</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="stuRegPassword">Password</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-lock"></i>
+                  <input type="password" id="stuRegPassword" minlength="4" required placeholder="••••••••">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block">
+                <i class="fa-solid fa-user-plus"></i> Register as Student / Leader
+              </button>
+            </form>
+
+            <!-- Faculty Registration Form (Multi-Department / Class / Division / Batch) -->
+            <form id="facultyRegisterForm" class="auth-form" style="display: none;" onsubmit="handleFacultyRegister(event)">
+              <div class="form-group">
+                <label for="facRegName">Faculty Full Name &amp; Title</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-user"></i>
+                  <input type="text" id="facRegName" required placeholder="e.g. Prof. / Dr. Faculty Name">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="facRegEmail">Faculty College Email</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-envelope"></i>
+                  <input type="email" id="facRegEmail" required placeholder="faculty.name@college.edu">
+                </div>
+              </div>
+
+              <!-- Dynamic Multi-Department Assignment Rows -->
+              <div class="form-group">
+                <div class="assignment-header-row">
+                  <label><i class="fa-solid fa-sitemap"></i> Department &amp; Batch Allocations</label>
+                  <button type="button" class="btn-text" onclick="addFacultyAssignmentRow()">
+                    <i class="fa-solid fa-plus-circle"></i> Add Another Dept / Batch
+                  </button>
+                </div>
+                <small class="helper-text" style="margin-bottom: 0.75rem;">
+                  Faculty can teach both ECS and Instrumentation across different classes, divisions, and batches.
+                </small>
+
+                <div id="facultyAssignmentsContainer" class="assignment-rows-list">
+                  <!-- Row 1 inserted dynamically or default -->
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="facRegPassword">Password</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-lock"></i>
+                  <input type="password" id="facRegPassword" minlength="4" required placeholder="••••••••">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block">
+                <i class="fa-solid fa-chalkboard-user"></i> Register Faculty Account
+              </button>
+            </form>
+
+            <div class="auth-footer-toggle">
+              <span id="authTogglePrompt">Need an account?</span>
+              <button type="button" class="btn-text" id="toggleAuthBtn" onclick="toggleAuthMode()">Register here</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. TAB: MY GROUP / DASHBOARD -->
+      <section id="myGroupTab" class="content-section tab-content" style="display: none;">
+        <!-- State A: Student has NOT created or joined a group yet -->
+        <div id="noGroupState" class="empty-group-container" style="display: none;">
+          <div class="welcome-banner">
+            <h2>Welcome, <span id="studentGreetingName">Student</span>!</h2>
+            <p>You are registered under <strong><span id="studentGreetingAlloc">Dept / Class / Div / Batch</span></strong>. You can register your project as a Group Leader or join your teammate's existing team with an invite code.</p>
+          </div>
+
+          <div class="onboarding-grid">
+            <!-- Register as Leader -->
+            <div class="card onboarding-card">
+              <div class="card-icon-header">
+                <div class="feature-icon icon-create">
+                  <i class="fa-solid fa-crown"></i>
+                </div>
+                <div>
+                  <h3>Register Group as Leader</h3>
+                  <small style="color: var(--text-muted);">You will be the primary project team leader</small>
+                </div>
+              </div>
+              <p class="card-desc">Create your project record, verify your department &amp; batch allocation, and unlock the 5-step milestone editor for your group.</p>
+              
+              <form id="createGroupForm" onsubmit="handleCreateGroup(event)">
+                <div class="form-group">
+                  <label for="newGroupName">Project Title / Group Name *</label>
+                  <input type="text" id="newGroupName" required placeholder="e.g. EcoSmart EV Grid">
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="newGroupDept">Department *</label>
+                    <select id="newGroupDept" required>
+                      <option value="ECS">ECS</option>
+                      <option value="Instrumentation">Instrumentation</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="newGroupClass">Class *</label>
+                    <select id="newGroupClass" required>
+                      <option value="Third Year">Third Year (TE)</option>
+                      <option value="Final Year">Final Year (BE)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="newGroupDiv">Division *</label>
+                    <select id="newGroupDiv" required>
+                      <option value="Div A">Division A</option>
+                      <option value="Div B">Division B</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="newGroupBatch">Batch *</label>
+                    <select id="newGroupBatch" required>
+                      <option value="Batch 1">Batch 1</option>
+                      <option value="Batch 2">Batch 2</option>
+                      <option value="Batch 3">Batch 3</option>
+                      <option value="Batch 4">Batch 4</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="newMemberNames">Group Members (Comma-separated)</label>
+                  <input type="text" id="newMemberNames" placeholder="Aarav Patel, Diya Sengupta">
+                  <small class="helper-text">You will automatically be recorded as the Group Leader.</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">
+                  <i class="fa-solid fa-check-circle"></i> Register Group &amp; Open Dashboard
+                </button>
+              </form>
+            </div>
+
+            <!-- Join Existing Group -->
+            <div class="card onboarding-card">
+              <div class="card-icon-header">
+                <div class="feature-icon icon-join">
+                  <i class="fa-solid fa-user-group"></i>
+                </div>
+                <div>
+                  <h3>Join Existing Group</h3>
+                  <small style="color: var(--text-muted);">Collaborate on your teammate's project</small>
+                </div>
+              </div>
+              <p class="card-desc">Enter the 6-character Invite Code shared by your Group Leader to join their exact project submission record.</p>
+
+              <form id="joinGroupForm" onsubmit="handleJoinGroup(event)">
+                <div class="form-group">
+                  <label for="joinInviteCode">Team Invite Code *</label>
+                  <input type="text" id="joinInviteCode" class="invite-code-input" required placeholder="e.g. ECSB1" maxlength="10">
+                  <small class="helper-text">Invite codes are unique and case-insensitive.</small>
+                </div>
+
+                <button type="submit" class="btn btn-outline btn-block">
+                  <i class="fa-solid fa-arrow-right-to-bracket"></i> Join Group
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- State B: Student / Leader HAS a group -->
+        <div id="hasGroupState" class="group-details-container" style="display: none;">
+          <!-- Top Group Hero Bar -->
+          <div class="group-hero-card">
+            <div class="hero-left">
+              <div class="hero-dept-badges">
+                <span class="badge-dept" id="activeGroupDept">ECS</span>
+                <span class="badge-class" id="activeGroupClass">Third Year</span>
+                <span class="badge-div" id="activeGroupDiv">Div A</span>
+                <span class="badge-batch" id="activeGroupBatch">Batch 1</span>
+                <span class="badge-leader" id="activeGroupLeaderBadge"><i class="fa-solid fa-crown"></i> Group Leader</span>
+              </div>
+              <h2 id="activeGroupName">Team Project Name</h2>
+              <div class="group-members-tags" id="activeGroupMembers"></div>
+            </div>
+
+            <div class="hero-right">
+              <div class="invite-share-card">
+                <span class="invite-label">INVITE CODE FOR TEAMMATES</span>
+                <div class="code-box">
+                  <code id="activeGroupInviteCode">------</code>
+                  <button type="button" class="btn-copy" onclick="copyInviteCode()" title="Copy Code">
+                    <i class="fa-regular fa-copy"></i>
+                  </button>
+                </div>
+                <small class="share-hint">Teammates can use this code to join this project record</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Faculty Score Card & Feedback Section -->
+          <div class="marks-display-card" id="studentMarksSection"></div>
+
+          <!-- Structured 5-Step Project Submission Form -->
+          <div class="card submission-card">
+            <div class="card-header-flex">
+              <div>
+                <h3><i class="fa-solid fa-list-check"></i> 5-Step Entrepreneurship &amp; Digital Marketing Workflow</h3>
+                <p class="section-desc">The Group Leader and enrolled teammates can update every detail of this project below. Faculty will review the full narrative of each step.</p>
+              </div>
+              <div class="save-status-indicator" id="saveIndicator">
+                <i class="fa-solid fa-circle-check"></i>
+                <span id="saveStatusText">Ready</span>
+              </div>
+            </div>
+
+            <form id="groupSubmissionForm" onsubmit="handleSaveSubmission(event)">
+              <!-- Step 1 -->
+              <div class="step-card" id="stepCard1">
+                <div class="step-header">
+                  <span class="step-num">Step 1</span>
+                  <div class="step-title-wrap">
+                    <h4>Problem Statement &amp; Market Need</h4>
+                    <span class="rubric-badge">Criterion: Innovation (15 Pts)</span>
+                  </div>
+                  <div id="step1StatusBadge" class="step-status-badge step-status-pending">Pending Review</div>
+                </div>
+                <p class="step-hint">Identify the specific customer pain point, industry inefficiency, and target demographic.</p>
+                <textarea id="inputStep1" rows="3" placeholder="Explain the core problem, why it is unresolved, and the market friction..."></textarea>
+                <div id="step1FeedbackBox" class="step-faculty-feedback-box" style="display: none;"></div>
+              </div>
+
+              <!-- Step 2 -->
+              <div class="step-card" id="stepCard2">
+                <div class="step-header">
+                  <span class="step-num">Step 2</span>
+                  <div class="step-title-wrap">
+                    <h4>Market Research &amp; Customer Validation</h4>
+                    <span class="rubric-badge">Criteria: Feasibility (10 Pts) + Innovation</span>
+                  </div>
+                  <div id="step2StatusBadge" class="step-status-badge step-status-locked">Locked</div>
+                </div>
+                <p class="step-hint">Survey results, interview feedback, addressable market size (TAM/SAM/SOM), and existing competitor analysis.</p>
+                <textarea id="inputStep2" rows="3" placeholder="Quantify your validation metrics, customer interviews, and competitor gaps..."></textarea>
+                <div id="step2FeedbackBox" class="step-faculty-feedback-box" style="display: none;"></div>
+                <div id="step2LockBanner" class="step-lock-banner" style="display: none;">
+                  <i class="fa-solid fa-lock"></i> <span>Locked: Step 1 must be marked and approved by faculty before you can proceed with Step 2.</span>
+                </div>
+              </div>
+
+              <!-- Step 3 -->
+              <div class="step-card" id="stepCard3">
+                <div class="step-header">
+                  <span class="step-num">Step 3</span>
+                  <div class="step-title-wrap">
+                    <h4>Innovative Solution &amp; Technical Prototype</h4>
+                    <span class="rubric-badge">Criterion: Solution (15 Pts)</span>
+                  </div>
+                  <div id="step3StatusBadge" class="step-status-badge step-status-locked">Locked</div>
+                </div>
+                <p class="step-hint">Detailed technical design, architecture, firmware/hardware specs, algorithm, or unique proprietary differentiator.</p>
+                <textarea id="inputStep3" rows="3" placeholder="Detail your engineering approach, product specs, and technical architecture..."></textarea>
+                <div id="step3FeedbackBox" class="step-faculty-feedback-box" style="display: none;"></div>
+                <div id="step3LockBanner" class="step-lock-banner" style="display: none;">
+                  <i class="fa-solid fa-lock"></i> <span>Locked: Step 2 must be marked and approved by faculty before you can proceed with Step 3.</span>
+                </div>
+              </div>
+
+              <!-- Step 4 -->
+              <div class="step-card" id="stepCard4">
+                <div class="step-header">
+                  <span class="step-num">Step 4</span>
+                  <div class="step-title-wrap">
+                    <h4>Feasibility Study, Unit Economics &amp; Business Model</h4>
+                    <span class="rubric-badge">Criterion: Feasibility (10 Pts)</span>
+                  </div>
+                  <div id="step4StatusBadge" class="step-status-badge step-status-locked">Locked</div>
+                </div>
+                <p class="step-hint">Bill of materials (BOM), cost per unit, pricing strategy, revenue channels, and payback period.</p>
+                <textarea id="inputStep4" rows="3" placeholder="Describe pricing tiers, cost breakdown, margins, and operational viability..."></textarea>
+                <div id="step4FeedbackBox" class="step-faculty-feedback-box" style="display: none;"></div>
+                <div id="step4LockBanner" class="step-lock-banner" style="display: none;">
+                  <i class="fa-solid fa-lock"></i> <span>Locked: Step 3 must be marked and approved by faculty before you can proceed with Step 4.</span>
+                </div>
+              </div>
+
+              <!-- Step 5 -->
+              <div class="step-card" id="stepCard5">
+                <div class="step-header">
+                  <span class="step-num">Step 5</span>
+                  <div class="step-title-wrap">
+                    <h4>Digital Marketing, Go-To-Market &amp; Pitch Presentation</h4>
+                    <span class="rubric-badge">Criterion: Presentation (10 Pts)</span>
+                  </div>
+                  <div id="step5StatusBadge" class="step-status-badge step-status-locked">Locked</div>
+                </div>
+                <p class="step-hint">Customer acquisition strategy (SEO, Social, B2B outbound), deck articulation, and live pitch milestones.</p>
+                <textarea id="inputStep5" rows="3" placeholder="Outline digital marketing campaigns, sales channels, and presentation links..."></textarea>
+                <div id="step5FeedbackBox" class="step-faculty-feedback-box" style="display: none;"></div>
+                <div id="step5LockBanner" class="step-lock-banner" style="display: none;">
+                  <i class="fa-solid fa-lock"></i> <span>Locked: Step 4 must be marked and approved by faculty before you can proceed with Step 5.</span>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 1.5rem;">
+                <label for="inputMemberNamesEdit">Teammates Roster (Comma-separated)</label>
+                <input type="text" id="inputMemberNamesEdit" placeholder="Aarav Patel, Diya Sengupta">
+              </div>
+
+              <div class="form-actions-bar">
+                <button type="submit" class="btn btn-primary" id="saveGroupBtn">
+                  <i class="fa-solid fa-floppy-disk"></i> Save Current Project Steps
+                </button>
+                <span class="last-saved-time" id="lastSavedTime"></span>
+              </div>
+            </form>
+          </div>
+
+          <!-- Component 2: ₹1,00,000 Budget Planner Card -->
+          <div class="budget-card">
+            <div class="budget-hero-row">
+              <div>
+                <span class="role-tag" style="background-color: #ecfdf5; color: #065f46;"><i class="fa-solid fa-indian-rupee-sign"></i> ₹1,00,000 Cap Budgetary</span>
+                <h3 style="font-weight: 800; margin-top: 0.25rem;">Project Budget Allocation &amp; Management</h3>
+                <p class="section-desc" style="margin-bottom: 0;">Plan, justify, and control prototyping, hardware, cloud, and digital marketing expenses within the designated ₹1,00,000 grant.</p>
+              </div>
+
+              <div class="budget-stat-pills">
+                <div class="budget-stat-box highlight-budget">
+                  <span class="bs-label">Total Allocated</span>
+                  <span class="bs-val" id="budgetTotalDisplay">₹0</span>
+                </div>
+                <div class="budget-stat-box">
+                  <span class="bs-label">Budget Remaining</span>
+                  <span class="bs-val" id="budgetRemainingDisplay">₹1,00,000</span>
+                </div>
+                <div class="budget-stat-box">
+                  <span class="bs-label">Max Cap</span>
+                  <span class="bs-val">₹1,00,000</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Visual Progress Bar -->
+            <div class="budget-progress-container">
+              <div class="budget-bar-track">
+                <div class="budget-bar-fill" id="budgetBarFill" style="width: 0%;"></div>
+              </div>
+              <div class="budget-bar-labels">
+                <span id="budgetPercentLabel">0% Used</span>
+                <span>Limit: ₹1,00,000</span>
+              </div>
+            </div>
+
+            <!-- Interactive Expense Line Items Table -->
+            <div class="budget-table-wrap">
+              <table class="budget-table" id="budgetTable">
+                <thead>
+                  <tr>
+                    <th style="width: 25%;">Expense Category</th>
+                    <th style="width: 30%;">Item / Service Name</th>
+                    <th style="width: 20%;">Cost (₹)</th>
+                    <th style="width: 20%;">Justification / Spec</th>
+                    <th style="width: 5%; text-align: center;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="budgetTableBody">
+                  <!-- Dynamic rows generated in app.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="form-actions-bar" style="margin-top: 1rem;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="addBudgetRow()">
+                <i class="fa-solid fa-plus-circle"></i> Add Expense Item
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" id="saveBudgetBtn" onclick="handleSaveBudget()">
+                <i class="fa-solid fa-floppy-disk"></i> Save Budget Plan
+              </button>
+            </div>
+          </div>
+
+          <!-- Component 3: Pitching Strategy Framework Card -->
+          <div class="pitch-card">
+            <div class="card-header-flex">
+              <div>
+                <span class="pitch-hero-badge"><i class="fa-solid fa-microphone-lines"></i> Investor &amp; Academic Pitching Strategy</span>
+                <h3 style="font-weight: 800;">High-Impact Entrepreneurial Pitch Framework</h3>
+                <p class="section-desc">Structure your 3-minute pitch deck, value proposition hook, target customer segment, and monetization plan.</p>
+              </div>
+            </div>
+
+            <form id="pitchStrategyForm" onsubmit="handleSavePitch(event)">
+              <div class="pitch-grid">
+                <!-- 1. The Hook -->
+                <div class="pitch-field-box">
+                  <label for="pitchHook"><i class="fa-solid fa-bolt" style="color: var(--warning);"></i> 1. The Hook &amp; One-Liner Tagline</label>
+                  <span class="pf-hint">Your memorable 10-second elevator pitch that immediately grabs faculty &amp; investor attention.</span>
+                  <textarea id="pitchHook" rows="2" placeholder="e.g. 'We build plug-and-play IoT telemetry for rural ICU ambulances, cutting response time by 40%.'"></textarea>
+                </div>
+
+                <!-- 2. Problem Urgency -->
+                <div class="pitch-field-box">
+                  <label for="pitchProblem"><i class="fa-solid fa-fire" style="color: var(--danger);"></i> 2. Problem Urgency &amp; Customer Pain</label>
+                  <span class="pf-hint">Why does this problem need solving TODAY? Who is losing time or money?</span>
+                  <textarea id="pitchProblem" rows="2" placeholder="Quantify the severe pain point, regulatory push, or cost of inaction..."></textarea>
+                </div>
+
+                <!-- 3. Unfair Advantage / USP -->
+                <div class="pitch-field-box">
+                  <label for="pitchUSP"><i class="fa-solid fa-gem" style="color: var(--accent);"></i> 3. Solution USP &amp; Technical Moat</label>
+                  <span class="pf-hint">What makes your engineering prototype defensible vs existing alternatives?</span>
+                  <textarea id="pitchUSP" rows="2" placeholder="Proprietary hardware/firmware, algorithm efficiency, edge AI low-latency..."></textarea>
+                </div>
+
+                <!-- 4. Target Market & TAM -->
+                <div class="pitch-field-box">
+                  <label for="pitchMarket"><i class="fa-solid fa-users-viewfinder" style="color: var(--primary);"></i> 4. Target Market &amp; Beachhead Customer</label>
+                  <span class="pf-hint">Total Addressable Market (TAM), Serviceable Market (SAM), and your first 50 early adopters.</span>
+                  <textarea id="pitchMarket" rows="2" placeholder="e.g. 14,000 tier-2 hospitals in Maharashtra with immediate budget approval..."></textarea>
+                </div>
+
+                <!-- 5. Business Model & Monetization -->
+                <div class="pitch-field-box">
+                  <label for="pitchModel"><i class="fa-solid fa-coins" style="color: var(--success);"></i> 5. Revenue Channels &amp; Unit Economics</label>
+                  <span class="pf-hint">How will this generate revenue? Pricing, margin, subscription vs hardware unit sale.</span>
+                  <textarea id="pitchModel" rows="2" placeholder="Hardware unit ₹12,000 + ₹800/month recurring telemetry cloud dashboard..."></textarea>
+                </div>
+
+                <!-- 6. Ask & Budget Milestones -->
+                <div class="pitch-field-box">
+                  <label for="pitchAsk"><i class="fa-solid fa-bullseye" style="color: #8b5cf6;"></i> 6. The Ask &amp; ₹1 Lakh Milestone Goals</label>
+                  <span class="pf-hint">How your team deploys the ₹1,00,000 budget to reach MVP validation and final demo day.</span>
+                  <textarea id="pitchAsk" rows="2" placeholder="₹45k for PCB prototype, ₹25k sensor calibration, ₹30k pilot field trials..."></textarea>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 1.25rem;">
+                <label for="pitchDeckUrl"><i class="fa-solid fa-link"></i> Presentation Pitch Deck / Video Demo URL (Canva, Google Slides, Loom, YouTube)</label>
+                <input type="url" id="pitchDeckUrl" placeholder="https://www.canva.com/design/... or https://docs.google.com/presentation/...">
+              </div>
+
+              <div class="form-actions-bar">
+                <button type="submit" class="btn btn-primary" id="savePitchBtn">
+                  <i class="fa-solid fa-floppy-disk"></i> Save Pitching Strategy
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Component 4: Digital Promotion & Acquisition Lab (Points 5, 6, 7, 8, 9, 10) -->
+          <div class="marketing-card" id="digitalMarketingCard">
+            <div class="card-header-flex">
+              <div>
+                <span class="role-tag" style="background-color: #eff6ff; color: #1d4ed8;">
+                  <i class="fa-solid fa-bullhorn"></i> Points 5 - 10: Real-Time Digital Promotion Lab
+                </span>
+                <h3 style="font-weight: 800; margin-top: 0.35rem;">Multi-Channel Digital Acquisition, SEO &amp; Ad Creative Studio</h3>
+                <p class="section-desc">Deploy your MarTech stack, content calendar, SEO meta keywords, infographics, and paid social campaign simulation.</p>
+              </div>
+            </div>
+
+            <form id="digitalMarketingForm" onsubmit="handleSaveDigitalMarketing(event)">
+              <!-- Sub-section A: Funnel & MarTech Tools (Points 5, 6) -->
+              <div class="marketing-subgrid">
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-filter" style="color: var(--primary);"></i> Point 5: Inbound &amp; Outbound Acquisition Funnel (AIDA)</label>
+                  <span class="pf-hint">Map Top-of-Funnel (TOFU awareness) to Bottom-of-Funnel (BOFU pilot customer conversion).</span>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <input type="text" id="mktFunnelTofu" placeholder="TOFU: Viral demo reel, technical whitepaper, LinkedIn thought leadership...">
+                    <input type="text" id="mktFunnelBofu" placeholder="BOFU: Free hospital pilot trial, 14-day test deployment, pre-order deposit...">
+                  </div>
+                </div>
+
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-toolbox" style="color: #8b5cf6;"></i> Point 6: Deployed MarTech Toolstack</label>
+                  <span class="pf-hint">Select and document the digital marketing tool stack configured for your venture.</span>
+                  <div class="martech-tags-grid">
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="Canva / Figma Creative"> Canva / Figma</label>
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="Mailchimp / SendGrid Email"> Mailchimp / SendGrid</label>
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="WordPress / Webflow CMS"> Webflow / WordPress</label>
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="Google Analytics 4 / Hotjar"> Google Analytics 4</label>
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="Meta Ads Manager"> Meta Ads Manager</label>
+                    <label class="checkbox-pill"><input type="checkbox" name="martechTool" value="Tally / Google Forms CRM"> Typeform / CRM</label>
+                  </div>
+                  <div style="margin-top: 0.5rem;">
+                    <input type="url" id="mktLandingPageUrl" placeholder="Live Landing Page / Prototype URL (e.g. https://yourteam.framer.website or GitHub Pages)">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-section B: Content Marketing & Persona (Point 7) -->
+              <div class="pitch-field-box" style="margin-top: 1rem;">
+                <label><i class="fa-solid fa-pen-nib" style="color: var(--warning);"></i> Point 7: Content Marketing, Buyer Persona &amp; 7-Day Editorial Calendar</label>
+                <span class="pf-hint">Define your exact ideal customer persona and structure your multi-day storytelling sequence.</span>
+                <textarea id="mktBuyerPersona" rows="2" placeholder="Buyer Persona: Age 32-48, Chief Biomedical Engineer / Plant Head, frustrated by slow sensor lag, active on LinkedIn..." style="margin-bottom: 0.5rem;"></textarea>
+                <textarea id="mktContentCalendar" rows="3" placeholder="7-Day Editorial Calendar:&#10;Day 1: Problem Awareness Reel&#10;Day 3: Behind-the-scenes PCB fabrication&#10;Day 5: Infographic on energy savings&#10;Day 7: Pilot signup announcement"></textarea>
+              </div>
+
+              <!-- Sub-section C: Infographics & SEO Fundamentals (Point 8) -->
+              <div class="marketing-subgrid" style="margin-top: 1rem;">
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-magnifying-glass-chart" style="color: var(--success);"></i> Point 8a: Search Engine Optimization (SEO) Simulator</label>
+                  <span class="pf-hint">Simulate your venture's Google SERP presence with meta tags and target keywords.</span>
+                  <input type="text" id="mktSeoTitle" placeholder="SEO Title Tag (Max 60 characters)..." style="margin-bottom: 0.5rem;">
+                  <textarea id="mktSeoDesc" rows="2" placeholder="SEO Meta Description (Max 155 characters summarizing value prop)..." style="margin-bottom: 0.5rem;"></textarea>
+                  <input type="text" id="mktSeoKeywords" placeholder="Target Keywords (Comma-separated, e.g. IoT telemetry, ICU ambulance sensor, low-latency)">
+                </div>
+
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-chart-pie" style="color: #ec4899;"></i> Point 8b: Infographic &amp; Visual Communication</label>
+                  <span class="pf-hint">Provide link to your Canva / Figma infographic communicating your solution or market stats.</span>
+                  <input type="url" id="mktInfographicUrl" placeholder="Canva / Figma / Drive Infographic share link..." style="margin-bottom: 0.5rem;">
+                  <div class="seo-preview-card" id="seoLivePreview">
+                    <span class="sp-url">https://yourventure.edu/ecsmart</span>
+                    <h5 class="sp-title" id="spTitleDisplay">Your Project Meta Title Preview</h5>
+                    <p class="sp-snippet" id="spDescDisplay">Meta description will appear here as search engines display it to prospective users.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-section D: Social Media Outreach & Paid Ads (Points 9, 10) -->
+              <div class="marketing-subgrid" style="margin-top: 1rem;">
+                <div class="pitch-field-box">
+                  <label><i class="fa-brands fa-linkedin" style="color: #0a66c2;"></i> Point 9: B2B LinkedIn &amp; Social Outreach Copy</label>
+                  <span class="pf-hint">Write your ready-to-publish social outreach post with technical highlights and hashtags.</span>
+                  <textarea id="mktSocialLinkedin" rows="3" placeholder="LinkedIn Post Copy: 'Excited to unveil our TE ECS capstone project tackling industrial sensor latency... #IoT #Automation #Engineering'" style="margin-bottom: 0.5rem;"></textarea>
+                  <textarea id="mktSocialInstagram" rows="2" placeholder="Instagram / X Hook &amp; Hashtags..."></textarea>
+                </div>
+
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-rectangle-ad" style="color: var(--accent);"></i> Point 10: Paid Advertising Simulator (CAC &amp; ROAS)</label>
+                  <span class="pf-hint">Simulate a targeted digital ad campaign funded from your ₹1,00,000 budget.</span>
+                  <input type="text" id="mktAdHeadline" placeholder="Ad Headline (e.g. 'Cut ICU Ambulance Response by 40%')" style="margin-bottom: 0.5rem;">
+                  <textarea id="mktAdCopy" rows="2" placeholder="Ad Primary Text &amp; Call To Action..." style="margin-bottom: 0.5rem;"></textarea>
+                  <div class="form-row-2">
+                    <div>
+                      <label style="font-size: 0.75rem;">Ad Budget Allocation (₹)</label>
+                      <input type="number" id="mktAdBudget" min="0" max="100000" step="500" placeholder="e.g. 15000" oninput="recalcAdMetrics()">
+                    </div>
+                    <div>
+                      <label style="font-size: 0.75rem;">Estimated CPC (₹/click)</label>
+                      <input type="number" id="mktAdCpc" min="1" max="500" step="1" placeholder="e.g. 25" oninput="recalcAdMetrics()">
+                    </div>
+                  </div>
+                  <div class="ad-roas-box" id="adRoasDisplay" style="margin-top: 0.5rem;">
+                    <span>Estimated Reach: <strong>0 Clicks</strong> • Est. Leads: <strong>0</strong> • Est. CAC: <strong>₹0</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-section E: Real-Time WhatsApp & Telegram Campaign Sharing & Deduplicated Tracking -->
+              <div class="share-campaign-box" style="margin-top: 1.25rem;">
+                <div class="sc-header">
+                  <div>
+                    <span class="role-tag" style="background-color: #dcfce7; color: #15803d;">
+                      <i class="fa-brands fa-whatsapp"></i> &amp; <i class="fa-brands fa-telegram"></i> Real-Time Viral Outreach Tracker
+                    </span>
+                    <h4 style="font-weight: 800; margin-top: 0.25rem;">Tracked Marketing Links for WhatsApp &amp; Telegram</h4>
+                    <p class="section-desc" style="margin-bottom: 0;">Share these personalized campaign links with mentors, industry professionals, and peers. Repeated clicks by the same user only count once (Deduplicated Unique Visitors).</p>
+                  </div>
+                </div>
+
+                <!-- Live Channel Share Buttons with 1-Click Copy & Direct Share -->
+                <div class="channel-share-grid">
+                  <!-- WhatsApp -->
+                  <div class="channel-card ch-whatsapp">
+                    <div class="ch-top">
+                      <i class="fa-brands fa-whatsapp" style="font-size: 1.6rem; color: #25d366;"></i>
+                      <strong>WhatsApp Campaign</strong>
+                    </div>
+                    <p class="ch-desc">Direct 1-click sharing to WhatsApp contacts and status groups with custom pitch hook.</p>
+                    <div class="ch-link-row">
+                      <input type="text" id="waTrackLink" readonly value="http://127.0.0.1:8000/track/whatsapp/...">
+                      <button type="button" class="btn-copy" onclick="copyTrackLink('waTrackLink')" title="Copy Link">
+                        <i class="fa-regular fa-copy"></i>
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-whatsapp" onclick="shareOnWhatsApp()">
+                      <i class="fa-brands fa-whatsapp"></i> Share on WhatsApp
+                    </button>
+                  </div>
+
+                  <!-- Telegram -->
+                  <div class="channel-card ch-telegram">
+                    <div class="ch-top">
+                      <i class="fa-brands fa-telegram" style="font-size: 1.6rem; color: #229ed9;"></i>
+                      <strong>Telegram Campaign</strong>
+                    </div>
+                    <p class="ch-desc">Broadcasting to technical groups, university tech channels, and startup communities.</p>
+                    <div class="ch-link-row">
+                      <input type="text" id="tgTrackLink" readonly value="http://127.0.0.1:8000/track/telegram/...">
+                      <button type="button" class="btn-copy" onclick="copyTrackLink('tgTrackLink')" title="Copy Link">
+                        <i class="fa-regular fa-copy"></i>
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-telegram" onclick="shareOnTelegram()">
+                      <i class="fa-brands fa-telegram"></i> Share on Telegram
+                    </button>
+                  </div>
+
+                  <!-- LinkedIn / Web -->
+                  <div class="channel-card ch-linkedin">
+                    <div class="ch-top">
+                      <i class="fa-brands fa-linkedin" style="font-size: 1.6rem; color: #0a66c2;"></i>
+                      <strong>LinkedIn &amp; Direct</strong>
+                    </div>
+                    <p class="ch-desc">Tracked showcase link for professional connections, faculty evaluators, and demo day.</p>
+                    <div class="ch-link-row">
+                      <input type="text" id="liTrackLink" readonly value="http://127.0.0.1:8000/track/linkedin/...">
+                      <button type="button" class="btn-copy" onclick="copyTrackLink('liTrackLink')" title="Copy Link">
+                        <i class="fa-regular fa-copy"></i>
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-linkedin" onclick="shareOnLinkedIn()">
+                      <i class="fa-brands fa-linkedin"></i> Share on LinkedIn
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Real-Time Deduplicated Performance Scorecard -->
+                <div class="metrics-scorecard-wrap">
+                  <div class="ms-title">
+                    <span><i class="fa-solid fa-chart-pie"></i> Verified Audience Reach &amp; Engagement Scorecard</span>
+                    <span class="live-pill" style="font-size: 0.7rem;"><span class="pulse-dot"></span> Live Verified</span>
+                  </div>
+
+                  <div class="metrics-stats-grid">
+                    <div class="ms-stat-box highlight-stat">
+                      <span class="ms-label">Total Unique People Reached</span>
+                      <span class="ms-val" id="statUniqueViews">0</span>
+                      <small class="ms-sub">Deduplicated (1 per Person)</small>
+                    </div>
+                    <div class="ms-stat-box">
+                      <span class="ms-label">Total Raw Clicks</span>
+                      <span class="ms-val" id="statRawClicks">0</span>
+                      <small class="ms-sub">Includes Repeat Clicks</small>
+                    </div>
+                    <div class="ms-stat-box">
+                      <span class="ms-label"><i class="fa-brands fa-whatsapp" style="color: #25d366;"></i> WhatsApp Unique</span>
+                      <span class="ms-val" id="statWaUnique">0</span>
+                      <small class="ms-sub">Unique Viewers</small>
+                    </div>
+                    <div class="ms-stat-box">
+                      <span class="ms-label"><i class="fa-brands fa-telegram" style="color: #229ed9;"></i> Telegram Unique</span>
+                      <span class="ms-val" id="statTgUnique">0</span>
+                      <small class="ms-sub">Unique Viewers</small>
+                    </div>
+                    <div class="ms-stat-box">
+                      <span class="ms-label"><i class="fa-brands fa-linkedin" style="color: #0a66c2;"></i> LinkedIn &amp; Direct</span>
+                      <span class="ms-val" id="statLiUnique">0</span>
+                      <small class="ms-sub">Unique Viewers</small>
+                    </div>
+                    <div class="ms-stat-box">
+                      <span class="ms-label">Retention / Engagement</span>
+                      <span class="ms-val" id="statEngagementRate">0%</span>
+                      <small class="ms-sub">Unique / Clicks</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-actions-bar" style="margin-top: 1.25rem;">
+                <button type="submit" class="btn btn-primary" id="saveMarketingBtn">
+                  <i class="fa-solid fa-floppy-disk"></i> Save Digital Promotion Lab Strategy
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Component 5: Analytics & Professional Employability Dossier (Points 11, 12) -->
+          <div class="employability-card" id="employabilityCard">
+            <div class="card-header-flex">
+              <div>
+                <span class="role-tag" style="background-color: #f5f3ff; color: #6d28d9;">
+                  <i class="fa-solid fa-graduation-cap"></i> Points 11 &amp; 12: Analytics &amp; Professional Employability
+                </span>
+                <h3 style="font-weight: 800; margin-top: 0.35rem;">Data-Driven Marketing Console &amp; Venture Portfolio</h3>
+                <p class="section-desc">Track real-time campaign performance metrics, generate traceable UTM links, map industry team roles, and export your placement portfolio.</p>
+              </div>
+            </div>
+
+            <form id="employabilityForm" onsubmit="handleSaveEmployability(event)">
+              <!-- Point 11: Web Analytics & UTM Generator -->
+              <div class="marketing-subgrid">
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-link" style="color: var(--primary);"></i> Point 11a: UTM Campaign URL Builder</label>
+                  <span class="pf-hint">Generate traceable campaign links to measure which channel generates the most traffic.</span>
+                  <input type="text" id="utmSource" placeholder="Campaign Source (e.g. linkedin, newsletter, college_expo)" oninput="recalcUtmLink()" style="margin-bottom: 0.5rem;">
+                  <input type="text" id="utmMedium" placeholder="Campaign Medium (e.g. cpc, post, banner)" oninput="recalcUtmLink()" style="margin-bottom: 0.5rem;">
+                  <input type="text" id="utmCampaign" placeholder="Campaign Name (e.g. pilot_launch_q1)" oninput="recalcUtmLink()" style="margin-bottom: 0.5rem;">
+                  <div class="utm-result-box">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">GENERATED TRACKING URL:</span>
+                    <code id="utmGeneratedUrl" style="word-break: break-all; display: block; margin-top: 0.25rem;">https://yourventure.edu?utm_source=...</code>
+                  </div>
+                </div>
+
+                <div class="pitch-field-box">
+                  <label><i class="fa-solid fa-chart-line" style="color: var(--success);"></i> Point 11b: Data-Driven Performance Scorecard</label>
+                  <span class="pf-hint">Track live validation numbers from customer outreach and pilot tests.</span>
+                  <div class="form-row-2">
+                    <div>
+                      <label style="font-size: 0.75rem;">Unique Visitors / Reach</label>
+                      <input type="number" id="analyticsVisitors" min="0" placeholder="e.g. 850">
+                    </div>
+                    <div>
+                      <label style="font-size: 0.75rem;">Click-Through Rate (CTR %)</label>
+                      <input type="number" id="analyticsCtr" min="0" max="100" step="0.1" placeholder="e.g. 4.2">
+                    </div>
+                  </div>
+                  <div class="form-row-2" style="margin-top: 0.5rem;">
+                    <div>
+                      <label style="font-size: 0.75rem;">Conversions / Pilot Leads</label>
+                      <input type="number" id="analyticsConversions" min="0" placeholder="e.g. 24">
+                    </div>
+                    <div>
+                      <label style="font-size: 0.75rem;">Customer Acquisition Cost (₹)</label>
+                      <input type="number" id="analyticsCac" min="0" placeholder="e.g. 625">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Point 12: Industry Specialization & Dossier Export -->
+              <div class="pitch-field-box" style="margin-top: 1rem;">
+                <label><i class="fa-solid fa-user-tie" style="color: #7c3aed;"></i> Point 12: Employability Prospects &amp; Team Industry Role Assignment</label>
+                <span class="pf-hint">Assign professional digital marketing &amp; entrepreneurship specializations to your team members for campus placements.</span>
+                
+                <div id="teamRoleAssignmentContainer" class="team-roles-list" style="margin-bottom: 0.75rem;">
+                  <!-- Dynamic rows generated per teammate in app.js -->
+                </div>
+
+                <div style="margin-top: 0.75rem;">
+                  <label for="portfolioExecSummary" style="font-size: 0.85rem; font-weight: 700;">Executive Venture Summary for Placement Resumes / LinkedIn</label>
+                  <textarea id="portfolioExecSummary" rows="3" placeholder="Comprehensive 3-paragraph executive summary encapsulating your problem, prototype engineering, digital promotion metrics, and commercial feasibility..."></textarea>
+                </div>
+              </div>
+
+              <div class="form-actions-bar" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <button type="submit" class="btn btn-primary" id="saveEmployabilityBtn">
+                  <i class="fa-solid fa-floppy-disk"></i> Save Analytics &amp; Roles
+                </button>
+                <button type="button" class="btn btn-outline" onclick="exportVentureDossier()" style="background-color: var(--bg-card); font-weight: 800; border-color: #7c3aed; color: #7c3aed;">
+                  <i class="fa-solid fa-file-pdf"></i> Export Placement-Ready Venture Dossier
+                </button>
+              </div>
+            </form>
+          </div>
+      </section>
+
+      <!-- 3. TAB: ADMIN GROUPS (FACULTY ONLY) -->
+      <section id="adminGroupsTab" class="content-section tab-content" style="display: none;">
+        <div class="section-title-bar">
+          <div>
+            <h2>Faculty Evaluation Dashboard</h2>
+            <p class="section-desc">Review every step of each project in full detail, assign marks out of 50, and filter by your assigned Departments &amp; Batches.</p>
+          </div>
+          <div class="admin-toolbar">
+            <button class="btn btn-outline btn-sm" onclick="loadAdminGroups(true)">
+              <i class="fa-solid fa-rotate"></i> Refresh Groups
+            </button>
+          </div>
+        </div>
+
+        <!-- Faculty's Assigned Batches Summary Badge Bar -->
+        <div id="facultyAssignedBadges" class="faculty-assigned-summary"></div>
+
+        <!-- Department, Class, Division, and Batch Filters for Faculty -->
+        <div class="filter-bar-card">
+          <div class="filter-controls">
+            <div class="filter-item">
+              <label for="filterDept"><i class="fa-solid fa-filter"></i> Department:</label>
+              <select id="filterDept" onchange="loadAdminGroups()">
+                <option value="All">All Departments</option>
+                <option value="ECS">ECS</option>
+                <option value="Instrumentation">Instrumentation</option>
+              </select>
+            </div>
+
+            <div class="filter-item">
+              <label for="filterClass">Class:</label>
+              <select id="filterClass" onchange="loadAdminGroups()">
+                <option value="All">All Classes</option>
+                <option value="Third Year">Third Year</option>
+                <option value="Final Year">Final Year</option>
+              </select>
+            </div>
+
+            <div class="filter-item">
+              <label for="filterDiv">Division:</label>
+              <select id="filterDiv" onchange="loadAdminGroups()">
+                <option value="All">All Divisions</option>
+                <option value="Div A">Division A</option>
+                <option value="Div B">Division B</option>
+              </select>
+            </div>
+
+            <div class="filter-item">
+              <label for="filterBatch">Batch:</label>
+              <select id="filterBatch" onchange="loadAdminGroups()">
+                <option value="All">All Batches</option>
+                <option value="Batch 1">Batch 1</option>
+                <option value="Batch 2">Batch 2</option>
+                <option value="Batch 3">Batch 3</option>
+                <option value="Batch 4">Batch 4</option>
+              </select>
+            </div>
+
+            <div class="filter-item search-item">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="groupSearchInput" placeholder="Search project or leader..." oninput="handleGroupSearch()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 50-Point Rubric Bar -->
+        <div class="rubric-explainer">
+          <div class="rubric-item">
+            <span class="rubric-name">Innovation</span>
+            <span class="rubric-max">Max 15 Pts</span>
+          </div>
+          <div class="rubric-item">
+            <span class="rubric-name">Feasibility</span>
+            <span class="rubric-max">Max 10 Pts</span>
+          </div>
+          <div class="rubric-item">
+            <span class="rubric-name">Solution</span>
+            <span class="rubric-max">Max 15 Pts</span>
+          </div>
+          <div class="rubric-item">
+            <span class="rubric-name">Presentation</span>
+            <span class="rubric-max">Max 10 Pts</span>
+          </div>
+          <div class="rubric-item total-item">
+            <span class="rubric-name">Total Scale</span>
+            <span class="rubric-max">50 Pts</span>
+          </div>
+        </div>
+
+        <div id="adminGroupsList" class="groups-list"></div>
+      </section>
+
+      <!-- 4. TAB: LEADERBOARD -->
+      <section id="leaderboardTab" class="content-section tab-content" style="display: none;">
+        <div class="section-title-bar">
+          <div>
+            <h2>Course Leaderboard (50 Pts)</h2>
+            <p class="section-desc">Live ranked standing across ECS and Instrumentation departments, classes, divisions, and batches.</p>
+          </div>
+          <div class="leaderboard-dept-filters">
+            <select id="lbFilterDept" onchange="loadLeaderboard()">
+              <option value="All">All Departments</option>
+              <option value="ECS">ECS Only</option>
+              <option value="Instrumentation">Instrumentation Only</option>
+            </select>
+            <select id="lbFilterDiv" onchange="loadLeaderboard()">
+              <option value="All">All Divisions</option>
+              <option value="Div A">Div A</option>
+              <option value="Div B">Div B</option>
+            </select>
+            <select id="lbFilterBatch" onchange="loadLeaderboard()">
+              <option value="All">All Batches</option>
+              <option value="Batch 1">Batch 1</option>
+              <option value="Batch 2">Batch 2</option>
+              <option value="Batch 3">Batch 3</option>
+              <option value="Batch 4">Batch 4</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Featured #1 Project Showcase Card -->
+        <div id="bestProjectShowcase" class="best-project-container" style="display: none;"></div>
+
+        <!-- Leaderboard Table -->
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="leaderboard-table" id="leaderboardTable">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">Rank</th>
+                  <th>Project &amp; Team</th>
+                  <th>Dept &amp; Class</th>
+                  <th>Div &amp; Batch</th>
+                  <th>Members</th>
+                  <th class="text-center" title="Max 15">Innovation<br><small>(/15)</small></th>
+                  <th class="text-center" title="Max 10">Feasibility<br><small>(/10)</small></th>
+                  <th class="text-center" title="Max 15">Solution<br><small>(/15)</small></th>
+                  <th class="text-center" title="Max 10">Presentation<br><small>(/10)</small></th>
+                  <th class="text-center">Total Score<br><small>(/50)</small></th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. TAB: ADMIN USER ROLES & SETTINGS (FACULTY ONLY) -->
+      <section id="adminUsersTab" class="content-section tab-content" style="display: none;">
+        <div class="section-title-bar">
+          <div>
+            <h2>Faculty Administration &amp; Allocations</h2>
+            <p class="section-desc">Inspect registered faculty assignments and student allocations.</p>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="user-management-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Allocated Departments &amp; Batches</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-icon-warning">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h3>Delete Group Record</h3>
+        <p>Are you sure you want to permanently delete <strong id="deleteTargetGroupName">this group</strong> and all its 5-step milestone submissions?</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Group</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs (v10 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="/static/firebase-config.js?v=1"></script>
+  <script src="/static/app.js?v=6"></script>
+</body>
+</html>
