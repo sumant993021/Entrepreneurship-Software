@@ -15,10 +15,12 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 import hashlib
 
 # ----------------- Database Setup -----------------
-DB_FILE = "edmg_project.db"
-DATABASE_URL = f"sqlite:///{DB_FILE}"
+# In serverless environments like Vercel, the filesystem is read-only except /tmp
+DB_DIR = "/tmp" if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") else os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(DB_DIR, "edmg_project.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_FILE}")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
