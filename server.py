@@ -1257,7 +1257,14 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # ----------------- Serve Frontend Static Files -----------------
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+# On Vercel, server.py might be imported from api/, or root
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+
+STATIC_DIR = os.path.join(CURRENT_DIR, "static")
+if not os.path.exists(STATIC_DIR):
+    STATIC_DIR = os.path.join(PARENT_DIR, "static")
+
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -1270,9 +1277,21 @@ def serve_index():
 
 @app.get("/{full_path:path}")
 def catch_all(full_path: str):
-    potential_file = os.path.join(STATIC_DIR, full_path)
+    # Strip leading 'static/' if matched
+    clean_path = full_path
+    if clean_path.startswith("static/"):
+        clean_path = clean_path[len("static/"):]
+
+    potential_file = os.path.join(STATIC_DIR, clean_path)
     if os.path.exists(potential_file) and os.path.isfile(potential_file):
-        return FileResponse(potential_file, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+        # Determine content type for css and js
+        media_type = None
+        if clean_path.endswith(".css"):
+            media_type = "text/css"
+        elif clean_path.endswith(".js"):
+            media_type = "application/javascript"
+        return FileResponse(potential_file, media_type=media_type, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
