@@ -663,7 +663,8 @@ function listenToMyGroupFirestore(groupId) {
   }
 }
 
-// Real-time Firestore live listener for faculty review dashboard
+// Real-time Firestore live listener for faculty review dashboard (debounced to avoid rapid re-renders)
+let facultySyncDebounceTimer = null;
 function listenToFacultyGroupsFirestore() {
   if (!window.firestoreDb || !currentUser || currentUser.role !== "faculty") return;
   if (adminGroupsFirestoreUnsub) {
@@ -676,7 +677,10 @@ function listenToFacultyGroupsFirestore() {
       .onSnapshot((snapshot) => {
         const activeTab = document.querySelector(".nav-item.active");
         if (activeTab && activeTab.id === "tabAdminGroupsBtn") {
-          loadAdminGroups(false);
+          if (facultySyncDebounceTimer) clearTimeout(facultySyncDebounceTimer);
+          facultySyncDebounceTimer = setTimeout(() => {
+            loadAdminGroups(false);
+          }, 1200);
         }
       }, err => console.warn("Firestore faculty listener notice:", err));
   } catch (e) {
@@ -1658,6 +1662,8 @@ function copyInviteCode() {
   });
 }
 
+let lastAdminGroupsJson = "";
+
 // ----------------- FACULTY FLOW -----------------
 async function loadAdminGroups(showToastNotice = false) {
   if (currentUser.role !== "faculty") return;
@@ -1685,9 +1691,20 @@ async function loadAdminGroups(showToastNotice = false) {
       throw new Error(err.detail || "Failed to load groups");
     }
 
-    allAdminGroups = await res.json();
-    renderAdminGroups(allAdminGroups);
-    listenToFacultyGroupsFirestore();
+    const fetchedGroups = await res.json();
+    const fetchedJson = JSON.stringify(fetchedGroups);
+
+    // Only re-render DOM if the data actually changed or if user explicitly requested reload
+    if (showToastNotice || fetchedJson !== lastAdminGroupsJson) {
+      lastAdminGroupsJson = fetchedJson;
+      allAdminGroups = fetchedGroups;
+      renderAdminGroups(allAdminGroups);
+    }
+
+    // Ensure Firestore listener is initialized once
+    if (!adminGroupsFirestoreUnsub) {
+      listenToFacultyGroupsFirestore();
+    }
 
     if (showToastNotice) {
       showToast("Groups reloaded.", "info");
@@ -1755,10 +1772,10 @@ function renderAdminGroups(groups) {
             <button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation(); promptDeleteGroup('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Delete Group">
               <i class="fa-regular fa-trash-can" style="color: var(--danger);"></i> Delete
             </button>
-            <button type="button" class="toggle-details-btn" id="toggle-btn-${g.id}">
+            <div class="toggle-details-btn" id="toggle-btn-${g.id}" style="pointer-events: none;">
               <span class="btn-text-state">${isExpanded ? 'Hide Project Details' : 'View Project &amp; Steps'}</span>
               <i class="fa-solid fa-chevron-down"></i>
-            </button>
+            </div>
           </div>
         </div>
 
