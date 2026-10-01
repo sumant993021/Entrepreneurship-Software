@@ -128,6 +128,16 @@ async function checkAuth() {
     return;
   }
 
+  // Restore cached user profile immediately if available so UI doesn't flicker/log out on refresh
+  const cachedUserStr = localStorage.getItem("edmg_user");
+  if (cachedUserStr) {
+    try {
+      currentUser = JSON.parse(cachedUserStr);
+      showAppUI();
+      loadInitialData();
+    } catch (e) {}
+  }
+
   try {
     const res = await fetch(`${API_BASE}/api/auth/me`, {
       headers: authHeaders()
@@ -135,14 +145,28 @@ async function checkAuth() {
 
     if (res.ok) {
       currentUser = await res.json();
+      localStorage.setItem("edmg_user", JSON.stringify(currentUser));
       setupWebSocket();
       showAppUI();
       loadInitialData();
-    } else {
+    } else if (res.status === 401) {
+      // Only log out if backend explicitly returns 401 Unauthorized
       logout();
     }
   } catch (err) {
-    showAuthUI();
+    // On network glitch / server spin-up delay, keep user logged in with cached credentials
+    console.warn("Auth check network notice:", err);
+    if (!currentUser && cachedUserStr) {
+      try {
+        currentUser = JSON.parse(cachedUserStr);
+        showAppUI();
+        loadInitialData();
+      } catch (e) {
+        showAuthUI();
+      }
+    } else if (!currentUser) {
+      showAuthUI();
+    }
   }
 }
 
@@ -414,6 +438,7 @@ async function handleLogin(e) {
     authToken = data.token;
     localStorage.setItem("edmg_token", authToken);
     currentUser = data.user;
+    localStorage.setItem("edmg_user", JSON.stringify(currentUser));
 
     // If Firebase Auth wasn't authenticated yet, try to ensure user exists
     if (window.firebaseAuth && !window.firebaseAuth.currentUser) {
@@ -478,6 +503,7 @@ async function handleStudentRegister(e) {
     authToken = data.token;
     localStorage.setItem("edmg_token", authToken);
     currentUser = data.user;
+    localStorage.setItem("edmg_user", JSON.stringify(currentUser));
 
     syncUserProfileToFirestore(currentUser);
 
@@ -544,6 +570,7 @@ async function handleFacultyRegister(e) {
     authToken = data.token;
     localStorage.setItem("edmg_token", authToken);
     currentUser = data.user;
+    localStorage.setItem("edmg_user", JSON.stringify(currentUser));
 
     syncUserProfileToFirestore(currentUser);
 
@@ -703,6 +730,7 @@ function logout() {
   authToken = null;
   currentUser = null;
   localStorage.removeItem("edmg_token");
+  localStorage.removeItem("edmg_user");
   if (socket) {
     socket.close();
     socket = null;

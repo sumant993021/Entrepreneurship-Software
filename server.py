@@ -145,6 +145,12 @@ class MarketingVisit(Base):
     ip_address = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+    token = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 Base.metadata.create_all(bind=engine)
 
 # Helper to automatically ensure new columns exist in existing SQLite databases
@@ -446,13 +452,36 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid authentication token")
     token = authorization.split(" ")[1]
+    
+    # 1. Check in-memory session cache
+    user_id = None
     session_data = SESSIONS.get(token)
-    if not session_data:
+    if session_data:
+        user_id = session_data.get("user_id")
+    else:
+        # 2. Check persistent user_sessions in database (handles serverless instance cold starts / restarts)
+        try:
+            persisted = db.query(UserSession).filter(UserSession.token == token).first()
+            if persisted:
+                user_id = persisted.user_id
+        except Exception:
+            pass
+
+    if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid")
     
-    user = db.query(User).filter(User.id == session_data["user_id"]).first()
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        
+    # Re-cache in memory for fastest subsequent lookups
+    if token not in SESSIONS:
+        SESSIONS[token] = {
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "name": user.name
+        }
     return user
 
 def require_faculty(user: User = Depends(get_current_user)) -> User:
@@ -511,6 +540,12 @@ def register_faculty(req: FacultyRegisterRequest, db: Session = Depends(get_db))
         "role": user.role,
         "name": user.name
     }
+    try:
+        db.add(UserSession(token=token, user_id=user.id))
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {"token": token, "user": u_dict}
 
 @app.post("/api/auth/register-student")
@@ -543,6 +578,12 @@ def register_student(req: StudentRegisterRequest, db: Session = Depends(get_db))
         "role": user.role,
         "name": user.name
     }
+    try:
+        db.add(UserSession(token=token, user_id=user.id))
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {"token": token, "user": u_dict}
 
 @app.post("/api/auth/login")
@@ -560,6 +601,12 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         "role": user.role,
         "name": user.name
     }
+    try:
+        db.add(UserSession(token=token, user_id=user.id))
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {"token": token, "user": u_dict}
 
 @app.get("/api/auth/me")
