@@ -1654,9 +1654,6 @@ async function loadAdminGroups(showToastNotice = false) {
   }
 }
 
-// Track which group cards are currently open by faculty
-const expandedAdminGroupIds = new Set();
-
 function renderAdminGroups(groups) {
   const container = document.getElementById("adminGroupsList");
   if (!groups || groups.length === 0) {

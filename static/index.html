@@ -79,7 +79,7 @@
             </div>
 
             <!-- Login Form -->
-            <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+            <form id="loginForm" class="auth-form" onsubmit="handleLogin(event); return false;">
               <div class="form-group">
                 <label for="loginEmail">College Email</label>
                 <div class="input-with-icon">
@@ -1123,7 +1123,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="/static/firebase-config.js?v=1"></script>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/firebase-config.js?v=2"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>
