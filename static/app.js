@@ -577,14 +577,43 @@ function syncUserProfileToFirestore(user) {
   }
 }
 
-// Sync group document to Firestore
+// Sync group document to Firestore with clean serializable object
 function syncGroupToFirestore(group) {
-  if (!window.firestoreDb || !group) return;
+  if (!window.firestoreDb || !group || !group.id) return;
   try {
-    window.firestoreDb.collection("groups").doc(group.id).set({
-      ...group,
+    const payload = {
+      id: group.id,
+      name: group.name || "",
+      department: group.department || "",
+      student_class: group.student_class || "",
+      division: group.division || "",
+      batch: group.batch || "",
+      invite_code: group.invite_code || "",
+      created_by: group.created_by || "",
+      creator_name: group.creator_name || "",
+      member_names: group.member_names || [],
+      member_user_ids: group.member_user_ids || [],
+      step1_problem_statement: group.step1_problem_statement || "",
+      step2_market_research: group.step2_market_research || "",
+      step3_innovative_solution: group.step3_innovative_solution || "",
+      step4_feasibility_business_model: group.step4_feasibility_business_model || "",
+      step5_marketing_presentation: group.step5_marketing_presentation || "",
+      step1_status: group.step1_status || "pending",
+      step2_status: group.step2_status || "pending",
+      step3_status: group.step3_status || "pending",
+      step4_status: group.step4_status || "pending",
+      step5_status: group.step5_status || "pending",
+      step1_remarks: group.step1_remarks || "",
+      step2_remarks: group.step2_remarks || "",
+      step3_remarks: group.step3_remarks || "",
+      step4_remarks: group.step4_remarks || "",
+      step5_remarks: group.step5_remarks || "",
+      score: group.score || null,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).catch(e => console.warn("Firestore sync group notice:", e));
+    };
+
+    window.firestoreDb.collection("groups").doc(group.id).set(payload, { merge: true })
+      .catch(e => console.warn("Firestore sync group notice:", e));
   } catch (err) {
     console.warn("Firestore sync error:", err);
   }
@@ -604,13 +633,27 @@ function listenToMyGroupFirestore(groupId) {
         if (doc.exists && currentUser && currentUser.role === "student") {
           const liveData = doc.data();
           if (liveData && currentMyGroup && doc.id === currentMyGroup.id) {
-            // Check if step status changed
+            let statusChanged = false;
             for (let i = 1; i <= 5; i++) {
               if (liveData[`step${i}_status`] && liveData[`step${i}_status`] !== currentMyGroup[`step${i}_status`]) {
                 currentMyGroup[`step${i}_status`] = liveData[`step${i}_status`];
-                currentMyGroup[`step${i}_remarks`] = liveData[`step${i}_remarks`];
-                renderStudentStepStatusAndLocking(currentMyGroup);
+                currentMyGroup[`step${i}_remarks`] = liveData[`step${i}_remarks`] || "";
+                statusChanged = true;
+              } else if (liveData[`step${i}_remarks`] !== undefined && liveData[`step${i}_remarks`] !== currentMyGroup[`step${i}_remarks`]) {
+                currentMyGroup[`step${i}_remarks`] = liveData[`step${i}_remarks`] || "";
+                statusChanged = true;
               }
+            }
+
+            if (liveData.score && JSON.stringify(liveData.score) !== JSON.stringify(currentMyGroup.score)) {
+              currentMyGroup.score = liveData.score;
+              renderStudentMarks(currentMyGroup.score);
+              showToast(`Evaluation score updated live: ${liveData.score.total}/50`, "info");
+            }
+
+            if (statusChanged) {
+              renderStudentStepStatusAndLocking(currentMyGroup);
+              showToast("Project milestone status updated in real-time by faculty!", "info");
             }
           }
         }
@@ -2313,4 +2356,43 @@ function escapeHtml(str) {
 
 document.addEventListener("DOMContentLoaded", () => {
   checkAuth();
+
+  // Background sync fallback: check for any faculty updates every 8 seconds
+  setInterval(() => {
+    if (authToken && currentUser) {
+      if (currentUser.role === "student" && currentMyGroup) {
+        // Fetch latest group status quietly
+        fetch(`${API_BASE}/api/groups/my-group`, { headers: authHeaders() })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (data && data.has_group && data.group) {
+              const g = data.group;
+              let changed = false;
+              for (let i = 1; i <= 5; i++) {
+                if (g[`step${i}_status`] !== currentMyGroup[`step${i}_status`] || g[`step${i}_remarks`] !== currentMyGroup[`step${i}_remarks`]) {
+                  currentMyGroup[`step${i}_status`] = g[`step${i}_status`];
+                  currentMyGroup[`step${i}_remarks`] = g[`step${i}_remarks`];
+                  changed = true;
+                }
+              }
+              if (JSON.stringify(g.score) !== JSON.stringify(currentMyGroup.score)) {
+                currentMyGroup.score = g.score;
+                renderStudentMarks(currentMyGroup.score);
+              }
+              if (changed) {
+                renderStudentStepStatusAndLocking(currentMyGroup);
+              }
+            }
+          })
+          .catch(() => {});
+      } else if (currentUser.role === "faculty") {
+        const activeTab = document.querySelector(".nav-item.active");
+        if (activeTab && activeTab.id === "tabAdminGroupsBtn") {
+          // Quietly update faculty dashboard if open
+          loadAdminGroups(false);
+        }
+      }
+    }
+  }, 8000);
 });
+
