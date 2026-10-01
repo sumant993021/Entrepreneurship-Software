@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is faculty
+    function isFaculty() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'faculty';
+    }
+
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // User Profiles collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isFaculty());
+    }
+
+    // Project Groups collection
+    match /groups/{groupId} {
+      allow read: if true; // Public view for showcase links
+      allow create: if isAuthenticated();
+      
+      // Faculty can update anything (approvals, remarks, scores)
+      // Students can update their own group ONLY if steps aren't already approved
+      allow update: if isAuthenticated() && (
+        isFaculty() ||
+        (
+          request.auth.uid in resource.data.member_user_ids &&
+          (resource.data.step1_status != 'approved' || request.resource.data.step1_problem_statement == resource.data.step1_problem_statement) &&
+          (resource.data.step2_status != 'approved' || request.resource.data.step2_market_research == resource.data.step2_market_research) &&
+          (resource.data.step3_status != 'approved' || request.resource.data.step3_innovative_solution == resource.data.step3_innovative_solution) &&
+          (resource.data.step4_status != 'approved' || request.resource.data.step4_feasibility_business_model == resource.data.step4_feasibility_business_model) &&
+          (resource.data.step5_status != 'approved' || request.resource.data.step5_marketing_presentation == resource.data.step5_marketing_presentation)
+        )
+      );
+
+      // Only faculty can delete groups
+      allow delete: if isFaculty();
+    }
+
+    // Scores collection (0-50 pts rubric)
+    match /scores/{groupId} {
+      allow read: if true;
+      allow write: if isFaculty();
+    }
+
+    // Marketing clicks and attribution visits
+    match /marketing_visits/{visitId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Public visitors generate tracking hits
+      allow update, delete: if isFaculty();
+    }
+
+    // Invite code lookup index
+    match /invite_codes/{code} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}

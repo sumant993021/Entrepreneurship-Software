@@ -635,6 +635,11 @@ function syncGroupToFirestore(group) {
       step3_remarks: group.step3_remarks || "",
       step4_remarks: group.step4_remarks || "",
       step5_remarks: group.step5_remarks || "",
+      budget_items: group.budget_items || [],
+      pitch_strategy: group.pitch_strategy || {},
+      digital_marketing: group.digital_marketing || {},
+      employability_portfolio: group.employability_portfolio || {},
+      marketing_metrics: group.marketing_metrics || {},
       score: group.score || null,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
