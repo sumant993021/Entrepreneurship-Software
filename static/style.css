@@ -1946,6 +1946,26 @@ tr:hover td {
   margin-top: 0.75rem;
 }
 
+.step-card.step-approved-locked {
+  border-left: 5px solid var(--success);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.03) 0%, var(--bg-card) 100%);
+}
+
+.step-card.step-approved-locked textarea {
+  background-color: var(--bg-secondary);
+  cursor: not-allowed;
+  color: var(--text-main);
+  opacity: 0.9;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.step-lock-banner.step-approved-banner {
+  background-color: var(--success-light);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--success-text);
+  font-weight: 500;
+}
+
 .admin-steps-container {
   margin-top: 1.25rem;
   margin-bottom: 1.5rem;

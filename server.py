@@ -813,9 +813,21 @@ async def update_group_content(group_id: str, req: UpdateGroupContentRequest, us
     if user.role != "faculty" and user.id not in member_user_ids:
         raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to edit this group.")
 
-    # Verify step progression locking for students:
-    # A student can only edit Step N if Step N-1 has been verified and marked as 'approved' by faculty
+    # Verify step progression locking & approved step locking for students:
+    # 1. Once a step is approved by faculty, students can no longer modify it.
+    # 2. A student can only edit Step N if Step N-1 has been verified and marked as 'approved' by faculty.
     if user.role != "faculty":
+        if group.step1_status == "approved" and req.step1_problem_statement is not None and req.step1_problem_statement != group.step1_problem_statement:
+            raise HTTPException(status_code=400, detail="Step 1 has already been approved and finalized by faculty and cannot be modified.")
+        if group.step2_status == "approved" and req.step2_market_research is not None and req.step2_market_research != group.step2_market_research:
+            raise HTTPException(status_code=400, detail="Step 2 has already been approved and finalized by faculty and cannot be modified.")
+        if group.step3_status == "approved" and req.step3_innovative_solution is not None and req.step3_innovative_solution != group.step3_innovative_solution:
+            raise HTTPException(status_code=400, detail="Step 3 has already been approved and finalized by faculty and cannot be modified.")
+        if group.step4_status == "approved" and req.step4_feasibility_business_model is not None and req.step4_feasibility_business_model != group.step4_feasibility_business_model:
+            raise HTTPException(status_code=400, detail="Step 4 has already been approved and finalized by faculty and cannot be modified.")
+        if group.step5_status == "approved" and req.step5_marketing_presentation is not None and req.step5_marketing_presentation != group.step5_marketing_presentation:
+            raise HTTPException(status_code=400, detail="Step 5 has already been approved and finalized by faculty and cannot be modified.")
+
         if req.step2_market_research is not None and req.step2_market_research != group.step2_market_research:
             if group.step1_status != "approved":
                 raise HTTPException(status_code=400, detail="Step 1 must be marked and approved by faculty before proceeding with Step 2.")
@@ -829,30 +841,30 @@ async def update_group_content(group_id: str, req: UpdateGroupContentRequest, us
             if group.step4_status != "approved":
                 raise HTTPException(status_code=400, detail="Step 4 must be marked and approved by faculty before proceeding with Step 5.")
 
-    if req.step1_problem_statement is not None:
+    if req.step1_problem_statement is not None and (user.role == "faculty" or group.step1_status != "approved"):
         if group.step1_problem_statement != req.step1_problem_statement:
             group.step1_problem_statement = req.step1_problem_statement
-            if user.role != "faculty" and group.step1_status != "approved":
+            if user.role != "faculty":
                 group.step1_status = "pending"
-    if req.step2_market_research is not None:
+    if req.step2_market_research is not None and (user.role == "faculty" or group.step2_status != "approved"):
         if group.step2_market_research != req.step2_market_research:
             group.step2_market_research = req.step2_market_research
-            if user.role != "faculty" and group.step2_status != "approved":
+            if user.role != "faculty":
                 group.step2_status = "pending"
-    if req.step3_innovative_solution is not None:
+    if req.step3_innovative_solution is not None and (user.role == "faculty" or group.step3_status != "approved"):
         if group.step3_innovative_solution != req.step3_innovative_solution:
             group.step3_innovative_solution = req.step3_innovative_solution
-            if user.role != "faculty" and group.step3_status != "approved":
+            if user.role != "faculty":
                 group.step3_status = "pending"
-    if req.step4_feasibility_business_model is not None:
+    if req.step4_feasibility_business_model is not None and (user.role == "faculty" or group.step4_status != "approved"):
         if group.step4_feasibility_business_model != req.step4_feasibility_business_model:
             group.step4_feasibility_business_model = req.step4_feasibility_business_model
-            if user.role != "faculty" and group.step4_status != "approved":
+            if user.role != "faculty":
                 group.step4_status = "pending"
-    if req.step5_marketing_presentation is not None:
+    if req.step5_marketing_presentation is not None and (user.role == "faculty" or group.step5_status != "approved"):
         if group.step5_marketing_presentation != req.step5_marketing_presentation:
             group.step5_marketing_presentation = req.step5_marketing_presentation
-            if user.role != "faculty" and group.step5_status != "approved":
+            if user.role != "faculty":
                 group.step5_status = "pending"
 
     if req.member_names is not None:

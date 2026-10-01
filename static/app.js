@@ -796,10 +796,9 @@ function renderMyGroupDetails(group) {
 }
 
 function renderStudentStepStatusAndLocking(group) {
-  // Step 1
+  // Step 1: always accessible initially, but once approved it becomes locked against student edits
   const s1Status = group.step1_status || "pending";
-  updateStepBadge("step1StatusBadge", s1Status);
-  updateStepFeedback("step1FeedbackBox", group.step1_remarks);
+  applyStepLocking(1, true, s1Status, group.step1_remarks, "");
 
   // Step 2 depends on Step 1 being approved
   const s1Approved = (s1Status === "approved");
@@ -829,20 +828,45 @@ function applyStepLocking(stepNum, isUnlocked, currentStatus, remarks, lockMessa
   const lockBanner = document.getElementById(`step${stepNum}LockBanner`);
 
   if (!isUnlocked) {
-    if (card) card.classList.add("step-locked");
+    // Prerequisite step is not yet approved
+    if (card) {
+      card.classList.add("step-locked");
+      card.classList.remove("step-approved-locked");
+    }
     if (textarea) textarea.disabled = true;
     if (lockBanner) {
       lockBanner.style.display = "flex";
+      lockBanner.className = "step-lock-banner";
       lockBanner.innerHTML = `<i class="fa-solid fa-lock"></i> <span><strong>Locked:</strong> ${lockMessage}</span>`;
     }
     if (badge) {
       badge.className = "step-status-badge step-status-locked";
       badge.innerHTML = `<i class="fa-solid fa-lock"></i> Locked (Requires Faculty Approval)`;
     }
+  } else if (currentStatus === "approved") {
+    // Current step has been approved and marked complete by faculty: lock it from student modification
+    if (card) {
+      card.classList.remove("step-locked");
+      card.classList.add("step-approved-locked");
+    }
+    if (textarea) textarea.disabled = true;
+    if (lockBanner) {
+      lockBanner.style.display = "flex";
+      lockBanner.className = "step-lock-banner step-approved-banner";
+      lockBanner.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span><strong>Approved &amp; Locked:</strong> This step has been approved and finalized by faculty. It cannot be modified.</span>`;
+    }
+    updateStepBadge(`step${stepNum}StatusBadge`, currentStatus);
   } else {
-    if (card) card.classList.remove("step-locked");
+    // Unlocked and pending or changes requested (editable)
+    if (card) {
+      card.classList.remove("step-locked");
+      card.classList.remove("step-approved-locked");
+    }
     if (textarea) textarea.disabled = false;
-    if (lockBanner) lockBanner.style.display = "none";
+    if (lockBanner) {
+      lockBanner.style.display = "none";
+      lockBanner.className = "step-lock-banner";
+    }
     updateStepBadge(`step${stepNum}StatusBadge`, currentStatus);
   }
 
@@ -1797,9 +1821,14 @@ function renderAdminGroups(groups) {
               <div class="asv-content-preview">${g.step1_problem_statement ? escapeHtml(g.step1_problem_statement) : '<em class="empty-italic">No problem statement submitted yet</em>'}</div>
               <div class="asv-actions">
                 <input type="text" id="asv-remarks-1-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 1..." value="${escapeHtml(g.step1_remarks || '')}">
-                <button type="button" class="btn btn-sm ${g.step1_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 1, 'approved')">
-                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 1
-                </button>
+                ${g.step1_status === 'approved' 
+                  ? `<button type="button" class="btn btn-sm btn-success" disabled style="opacity: 0.9; cursor: not-allowed; background-color: var(--success); color: white; border-color: var(--success);">
+                      <i class="fa-solid fa-circle-check"></i> Step 1 Completed &amp; Approved
+                    </button>`
+                  : `<button type="button" class="btn btn-sm btn-outline" onclick="handleVerifyStep('${g.id}', 1, 'approved')">
+                      <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 1
+                    </button>`
+                }
                 <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 1, 'rejected')">
                   <i class="fa-solid fa-xmark"></i> Request Changes
                 </button>
@@ -1815,9 +1844,14 @@ function renderAdminGroups(groups) {
               <div class="asv-content-preview">${g.step2_market_research ? escapeHtml(g.step2_market_research) : '<em class="empty-italic">No market research submitted yet</em>'}</div>
               <div class="asv-actions">
                 <input type="text" id="asv-remarks-2-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 2..." value="${escapeHtml(g.step2_remarks || '')}">
-                <button type="button" class="btn btn-sm ${g.step2_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 2, 'approved')">
-                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 2
-                </button>
+                ${g.step2_status === 'approved'
+                  ? `<button type="button" class="btn btn-sm btn-success" disabled style="opacity: 0.9; cursor: not-allowed; background-color: var(--success); color: white; border-color: var(--success);">
+                      <i class="fa-solid fa-circle-check"></i> Step 2 Completed &amp; Approved
+                    </button>`
+                  : `<button type="button" class="btn btn-sm btn-outline" onclick="handleVerifyStep('${g.id}', 2, 'approved')">
+                      <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 2
+                    </button>`
+                }
                 <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 2, 'rejected')">
                   <i class="fa-solid fa-xmark"></i> Request Changes
                 </button>
@@ -1833,9 +1867,14 @@ function renderAdminGroups(groups) {
               <div class="asv-content-preview">${g.step3_innovative_solution ? escapeHtml(g.step3_innovative_solution) : '<em class="empty-italic">No prototype details submitted yet</em>'}</div>
               <div class="asv-actions">
                 <input type="text" id="asv-remarks-3-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 3..." value="${escapeHtml(g.step3_remarks || '')}">
-                <button type="button" class="btn btn-sm ${g.step3_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 3, 'approved')">
-                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 3
-                </button>
+                ${g.step3_status === 'approved'
+                  ? `<button type="button" class="btn btn-sm btn-success" disabled style="opacity: 0.9; cursor: not-allowed; background-color: var(--success); color: white; border-color: var(--success);">
+                      <i class="fa-solid fa-circle-check"></i> Step 3 Completed &amp; Approved
+                    </button>`
+                  : `<button type="button" class="btn btn-sm btn-outline" onclick="handleVerifyStep('${g.id}', 3, 'approved')">
+                      <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 3
+                    </button>`
+                }
                 <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 3, 'rejected')">
                   <i class="fa-solid fa-xmark"></i> Request Changes
                 </button>
@@ -1851,9 +1890,14 @@ function renderAdminGroups(groups) {
               <div class="asv-content-preview">${g.step4_feasibility_business_model ? escapeHtml(g.step4_feasibility_business_model) : '<em class="empty-italic">No feasibility study submitted yet</em>'}</div>
               <div class="asv-actions">
                 <input type="text" id="asv-remarks-4-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 4..." value="${escapeHtml(g.step4_remarks || '')}">
-                <button type="button" class="btn btn-sm ${g.step4_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 4, 'approved')">
-                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 4
-                </button>
+                ${g.step4_status === 'approved'
+                  ? `<button type="button" class="btn btn-sm btn-success" disabled style="opacity: 0.9; cursor: not-allowed; background-color: var(--success); color: white; border-color: var(--success);">
+                      <i class="fa-solid fa-circle-check"></i> Step 4 Completed &amp; Approved
+                    </button>`
+                  : `<button type="button" class="btn btn-sm btn-outline" onclick="handleVerifyStep('${g.id}', 4, 'approved')">
+                      <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 4
+                    </button>`
+                }
                 <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 4, 'rejected')">
                   <i class="fa-solid fa-xmark"></i> Request Changes
                 </button>
@@ -1869,9 +1913,14 @@ function renderAdminGroups(groups) {
               <div class="asv-content-preview">${g.step5_marketing_presentation ? escapeHtml(g.step5_marketing_presentation) : '<em class="empty-italic">No pitch presentation submitted yet</em>'}</div>
               <div class="asv-actions">
                 <input type="text" id="asv-remarks-5-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 5..." value="${escapeHtml(g.step5_remarks || '')}">
-                <button type="button" class="btn btn-sm ${g.step5_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 5, 'approved')">
-                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 5
-                </button>
+                ${g.step5_status === 'approved'
+                  ? `<button type="button" class="btn btn-sm btn-success" disabled style="opacity: 0.9; cursor: not-allowed; background-color: var(--success); color: white; border-color: var(--success);">
+                      <i class="fa-solid fa-circle-check"></i> Step 5 Completed &amp; Approved
+                    </button>`
+                  : `<button type="button" class="btn btn-sm btn-outline" onclick="handleVerifyStep('${g.id}', 5, 'approved')">
+                      <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 5
+                    </button>`
+                }
                 <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 5, 'rejected')">
                   <i class="fa-solid fa-xmark"></i> Request Changes
                 </button>
