@@ -383,16 +383,20 @@ async function handleLogin(e) {
       submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Signing In...`;
     }
 
-    // 1. Firebase Authentication (if initialized)
+    // 1. Firebase Authentication (non-blocking for existing accounts)
     if (window.firebaseAuth) {
       try {
         await window.firebaseAuth.signInWithEmailAndPassword(email, password);
       } catch (fbErr) {
         // If user doesn't exist in Firebase yet but exists in local DB, create user in Firebase
-        if (fbErr.code === "auth/user-not-found") {
+        if (fbErr.code === "auth/user-not-found" || fbErr.code === "auth/invalid-credential") {
           try {
             await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
-          } catch (e2) {}
+          } catch (e2) {
+            console.warn("Firebase Auth fallback notice:", e2.message);
+          }
+        } else {
+          console.warn("Firebase Auth notice:", fbErr.message);
         }
       }
     }
@@ -410,6 +414,17 @@ async function handleLogin(e) {
     authToken = data.token;
     localStorage.setItem("edmg_token", authToken);
     currentUser = data.user;
+
+    // If Firebase Auth wasn't authenticated yet, try to ensure user exists
+    if (window.firebaseAuth && !window.firebaseAuth.currentUser) {
+      try {
+        await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+      } catch (fbSyncErr) {
+        try {
+          await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+        } catch (e3) {}
+      }
+    }
 
     // Save profile to Firestore
     syncUserProfileToFirestore(currentUser);

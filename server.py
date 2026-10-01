@@ -16,9 +16,20 @@ import hashlib
 
 # ----------------- Database Setup -----------------
 # In serverless environments like Vercel, the filesystem is read-only except /tmp
-DB_DIR = "/tmp" if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") else os.path.dirname(os.path.abspath(__file__))
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+DB_DIR = "/tmp" if IS_SERVERLESS else os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(DB_DIR, "edmg_project.db")
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_FILE}")
+
+# If on serverless and DB doesn't exist in /tmp, copy the existing bundled DB if available
+if IS_SERVERLESS and not os.path.exists(DB_FILE):
+    import shutil
+    source_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "edmg_project.db")
+    if os.path.exists(source_db):
+        try:
+            shutil.copy2(source_db, DB_FILE)
+        except Exception as e:
+            print(f"Error copying DB to /tmp: {e}")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -169,6 +180,118 @@ def run_sqlite_migrations():
         conn.connection.commit()
 
 run_sqlite_migrations()
+
+# Seed default existing faculties and students to guarantee they can always log in
+def seed_initial_accounts():
+    db = SessionLocal()
+    try:
+        # Check and seed existing accounts
+        existing_users_seed = [
+            {
+                "id": "37bfcb86-26ba-4253-a1f6-7d4ce822f4c0",
+                "email": "sumantdeshmukh.in@gmail.com",
+                "name": "Sumant Deshmukh",
+                "hashed_password": "499d87657c980441e6d26633f55ddd40fa22333cd2210e1fe994f075ec2369fc",
+                "role": "faculty",
+                "department": "ECS",
+                "student_class": "Third Year",
+                "division": "Div A",
+                "batch": "Batch 1",
+                "faculty_assignments_json": json.dumps([
+                    {"department": "ECS", "student_class": "Third Year", "division": "Div A", "batches": ["Batch 1", "Batch 2", "Batch 3", "Batch 4"]},
+                    {"department": "Instrumentation", "student_class": "Third Year", "division": "Div A", "batches": ["Batch 1", "Batch 2", "Batch 3", "Batch 4"]},
+                    {"department": "ECS", "student_class": "Third Year", "division": "Div B", "batches": ["Batch 1", "Batch 2", "Batch 3", "Batch 4"]}
+                ])
+            },
+            {
+                "id": "d5d9b147-f371-4295-b5f0-71527ac30263",
+                "email": "sumantdeshmukh39@gmail.com",
+                "name": "Abhishek",
+                "hashed_password": "4a717f44f3aad1ef354f736bce29cc44c0e3a0581b4d74dcc9d3cc67340a955b",
+                "role": "faculty",
+                "department": "ECS",
+                "student_class": "Third Year",
+                "division": "Div A",
+                "batch": "Batch 1",
+                "faculty_assignments_json": json.dumps([
+                    {"department": "ECS", "student_class": "Third Year", "division": "Div B", "batches": ["Batch 1", "Batch 2", "Batch 3", "Batch 4"]},
+                    {"department": "Instrumentation", "student_class": "Third Year", "division": "Div A", "batches": ["Batch 3", "Batch 4"]}
+                ])
+            },
+            {
+                "id": "ef5475b0-15ee-4e83-aeb1-cb13c771f7f0",
+                "email": "sumant9.cyber@gmail.com",
+                "name": "Ninad",
+                "hashed_password": "619a93b0b683d9ed94d8e4837273ef506a37a3d2627c8b7f136c66e54e6c465b",
+                "role": "faculty",
+                "department": "ECS",
+                "student_class": "Third Year",
+                "division": "Div A",
+                "batch": "Batch 1",
+                "faculty_assignments_json": json.dumps([
+                    {"department": "ECS", "student_class": "Third Year", "division": "Div A", "batches": ["Batch 1", "Batch 2", "Batch 3", "Batch 4"]},
+                    {"department": "Instrumentation", "student_class": "Third Year", "division": "Div A", "batches": ["Batch 1", "Batch 2"]}
+                ])
+            },
+            {
+                "id": "d722a5e8-c353-409c-b04f-c93852c29842",
+                "email": "sd397388@gmail.com",
+                "name": "Sumant Sanjay Deshmukh",
+                "hashed_password": "499d87657c980441e6d26633f55ddd40fa22333cd2210e1fe994f075ec2369fc",
+                "role": "student",
+                "department": "ECS",
+                "student_class": "Third Year",
+                "division": "Div A",
+                "batch": "Batch 4",
+                "faculty_assignments_json": "[]"
+            }
+        ]
+
+        for u in existing_users_seed:
+            chk = db.query(User).filter(User.email == u["email"]).first()
+            if not chk:
+                new_user = User(**u)
+                db.add(new_user)
+        
+        # Ensure Nexbyte Technologies group exists
+        grp_chk = db.query(Group).filter(Group.id == "68fc11a3-d944-4f52-8c59-8b4d356e94e1").first()
+        if not grp_chk:
+            new_grp = Group(
+                id="68fc11a3-d944-4f52-8c59-8b4d356e94e1",
+                name="Nexbyte Technologies",
+                invite_code="XSWE7R",
+                department="ECS",
+                student_class="Third Year",
+                division="Div A",
+                batch="Batch 4",
+                member_names_json=json.dumps(["Sumant Sanjay Deshmukh", "Vedant Methe", "Siddhant Deshmukh", "Indrajeet Ghadge"]),
+                member_user_ids_json=json.dumps(["d722a5e8-c353-409c-b04f-c93852c29842"]),
+                created_by="d722a5e8-c353-409c-b04f-c93852c29842",
+                step1_problem_statement="MotorMind : Smart Predictive Maintanance System",
+                step2_market_research="",
+                step3_innovative_solution="",
+                step4_feasibility_business_model="",
+                step5_marketing_presentation="",
+                step1_status="pending",
+                step2_status="pending",
+                step3_status="pending",
+                step4_status="pending",
+                step5_status="pending",
+                budget_items_json="[]",
+                pitch_strategy_json="{}",
+                digital_marketing_json="{}",
+                employability_portfolio_json="{}"
+            )
+            db.add(new_grp)
+
+        db.commit()
+    except Exception as e:
+        print(f"Error seeding initial accounts: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+seed_initial_accounts()
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
