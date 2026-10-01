@@ -3,6 +3,7 @@ let currentUser = null;
 let authToken = localStorage.getItem("edmg_token") || null;
 let currentMyGroup = null;
 let allAdminGroups = [];
+let expandedAdminGroupIds = new Set();
 let socket = null;
 let deleteTargetGroupId = null;
 let regRole = "student"; // 'student' or 'faculty'
@@ -1638,6 +1639,9 @@ async function loadAdminGroups(showToastNotice = false) {
   }
 }
 
+// Track which group cards are currently open by faculty
+const expandedAdminGroupIds = new Set();
+
 function renderAdminGroups(groups) {
   const container = document.getElementById("adminGroupsList");
   if (!groups || groups.length === 0) {
@@ -1655,165 +1659,218 @@ function renderAdminGroups(groups) {
     const s = g.score || { innovation: 0, feasibility: 0, solution: 0, presentation: 0, total: 0, remarks: "" };
     const memberStr = (g.member_names || []).join(", ") || "No members listed";
     
+    // Count how many steps are approved out of 5
+    let approvedCount = 0;
+    if (g.step1_status === 'approved') approvedCount++;
+    if (g.step2_status === 'approved') approvedCount++;
+    if (g.step3_status === 'approved') approvedCount++;
+    if (g.step4_status === 'approved') approvedCount++;
+    if (g.step5_status === 'approved') approvedCount++;
+
+    const isExpanded = expandedAdminGroupIds.has(g.id);
+
     return `
-      <div class="admin-group-card" id="group-card-${g.id}">
-        <div class="admin-group-header">
-          <div class="admin-group-title">
+      <div class="admin-group-card ${isExpanded ? 'is-expanded' : ''}" id="group-card-${g.id}">
+        <!-- Group Summary Header (Clickable) -->
+        <div class="admin-group-summary-bar" onclick="toggleGroupDetails('${g.id}')">
+          <div class="admin-group-info-left">
             <div class="card-dept-tags">
               <span class="badge-dept">${g.department}</span>
               <span class="badge-class">${g.student_class}</span>
               <span class="badge-div">${g.division}</span>
               <span class="badge-batch">${g.batch}</span>
               <span class="badge-code">Code: ${g.invite_code}</span>
+              <span class="badge" style="background: ${approvedCount === 5 ? '#10b981' : (approvedCount > 0 ? '#f59e0b' : '#64748b')}; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px;">
+                <i class="fa-solid fa-bars-progress"></i> ${approvedCount}/5 Steps Approved
+              </span>
+              ${s.total > 0 ? `<span class="badge" style="background: var(--primary); font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px;">Score: ${s.total}/50</span>` : ''}
             </div>
-            <h3>${escapeHtml(g.name)}</h3>
+            <h3>
+              <i class="fa-solid fa-users-rectangle" style="color: var(--primary);"></i>
+              ${escapeHtml(g.name)}
+            </h3>
             <div class="admin-group-meta">
               <span><strong>Leader:</strong> ${escapeHtml(g.creator_name)}</span>
               <span>•</span>
-              <span><strong>Team:</strong> ${escapeHtml(memberStr)}</span>
-            </div>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="promptDeleteGroup('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Delete Group">
-            <i class="fa-regular fa-trash-can" style="color: var(--danger);"></i> Delete
-          </button>
-        </div>
-
-        <!-- 5-Step Detailed Narrative with Per-Step Verification for Faculty -->
-        <div class="admin-steps-container">
-          <div class="admin-steps-title" style="display: flex; justify-content: space-between; align-items: center;">
-            <span><i class="fa-solid fa-list-check"></i> Per-Step Verification &amp; Marking Portal</span>
-            <small style="color: var(--text-muted); font-size: 0.8rem;">Students can only proceed to Step N once Step N-1 is Approved</small>
-          </div>
-
-          <!-- Step 1 Verification Card -->
-          <div class="admin-step-verification-card">
-            <div class="asv-header">
-              <span class="asv-title">Step 1: Problem Statement &amp; Need (Max 15 Pts Innovation)</span>
-              ${renderAdminStepBadge(g.step1_status)}
-            </div>
-            <div class="asv-content-preview">${g.step1_problem_statement ? escapeHtml(g.step1_problem_statement) : '<em class="empty-italic">No problem statement submitted yet</em>'}</div>
-            <div class="asv-actions">
-              <input type="text" id="asv-remarks-1-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 1..." value="${escapeHtml(g.step1_remarks || '')}">
-              <button type="button" class="btn btn-sm ${g.step1_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 1, 'approved')">
-                <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 1
-              </button>
-              <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 1, 'rejected')">
-                <i class="fa-solid fa-xmark"></i> Request Changes
-              </button>
+              <span><strong>Team Members:</strong> ${escapeHtml(memberStr)}</span>
             </div>
           </div>
 
-          <!-- Step 2 Verification Card -->
-          <div class="admin-step-verification-card">
-            <div class="asv-header">
-              <span class="asv-title">Step 2: Market Research &amp; Validation (Max 10 Pts Feasibility)</span>
-              ${renderAdminStepBadge(g.step2_status)}
-            </div>
-            <div class="asv-content-preview">${g.step2_market_research ? escapeHtml(g.step2_market_research) : '<em class="empty-italic">No market research submitted yet</em>'}</div>
-            <div class="asv-actions">
-              <input type="text" id="asv-remarks-2-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 2..." value="${escapeHtml(g.step2_remarks || '')}">
-              <button type="button" class="btn btn-sm ${g.step2_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 2, 'approved')">
-                <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 2
-              </button>
-              <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 2, 'rejected')">
-                <i class="fa-solid fa-xmark"></i> Request Changes
-              </button>
-            </div>
-          </div>
-
-          <!-- Step 3 Verification Card -->
-          <div class="admin-step-verification-card">
-            <div class="asv-header">
-              <span class="asv-title">Step 3: Innovative Solution &amp; Prototype (Max 15 Pts Solution)</span>
-              ${renderAdminStepBadge(g.step3_status)}
-            </div>
-            <div class="asv-content-preview">${g.step3_innovative_solution ? escapeHtml(g.step3_innovative_solution) : '<em class="empty-italic">No prototype details submitted yet</em>'}</div>
-            <div class="asv-actions">
-              <input type="text" id="asv-remarks-3-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 3..." value="${escapeHtml(g.step3_remarks || '')}">
-              <button type="button" class="btn btn-sm ${g.step3_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 3, 'approved')">
-                <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 3
-              </button>
-              <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 3, 'rejected')">
-                <i class="fa-solid fa-xmark"></i> Request Changes
-              </button>
-            </div>
-          </div>
-
-          <!-- Step 4 Verification Card -->
-          <div class="admin-step-verification-card">
-            <div class="asv-header">
-              <span class="asv-title">Step 4: Feasibility Study &amp; Business Model (Max 10 Pts Feasibility)</span>
-              ${renderAdminStepBadge(g.step4_status)}
-            </div>
-            <div class="asv-content-preview">${g.step4_feasibility_business_model ? escapeHtml(g.step4_feasibility_business_model) : '<em class="empty-italic">No feasibility study submitted yet</em>'}</div>
-            <div class="asv-actions">
-              <input type="text" id="asv-remarks-4-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 4..." value="${escapeHtml(g.step4_remarks || '')}">
-              <button type="button" class="btn btn-sm ${g.step4_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 4, 'approved')">
-                <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 4
-              </button>
-              <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 4, 'rejected')">
-                <i class="fa-solid fa-xmark"></i> Request Changes
-              </button>
-            </div>
-          </div>
-
-          <!-- Step 5 Verification Card -->
-          <div class="admin-step-verification-card">
-            <div class="asv-header">
-              <span class="asv-title">Step 5: Digital Marketing &amp; Pitch Deck (Max 10 Pts Presentation)</span>
-              ${renderAdminStepBadge(g.step5_status)}
-            </div>
-            <div class="asv-content-preview">${g.step5_marketing_presentation ? escapeHtml(g.step5_marketing_presentation) : '<em class="empty-italic">No pitch presentation submitted yet</em>'}</div>
-            <div class="asv-actions">
-              <input type="text" id="asv-remarks-5-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 5..." value="${escapeHtml(g.step5_remarks || '')}">
-              <button type="button" class="btn btn-sm ${g.step5_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 5, 'approved')">
-                <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 5
-              </button>
-              <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 5, 'rejected')">
-                <i class="fa-solid fa-xmark"></i> Request Changes
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Budget & Pitch Strategy Overview for Faculty -->
-        ${renderAdminBudgetAndPitchSummary(g)}
-
-        <!-- Inline Scoring UI -->
-        <form class="scoring-form" onsubmit="handleSaveScore(event, '${g.id}')">
-          <div class="scoring-grid">
-            <div class="score-col">
-              <label for="innov-${g.id}">Innovation (0-15)</label>
-              <input type="number" id="innov-${g.id}" min="0" max="15" value="${s.innovation}" required oninput="recalcInlineTotal('${g.id}')">
-            </div>
-            <div class="score-col">
-              <label for="feas-${g.id}">Feasibility (0-10)</label>
-              <input type="number" id="feas-${g.id}" min="0" max="10" value="${s.feasibility}" required oninput="recalcInlineTotal('${g.id}')">
-            </div>
-            <div class="score-col">
-              <label for="sol-${g.id}">Solution (0-15)</label>
-              <input type="number" id="sol-${g.id}" min="0" max="15" value="${s.solution}" required oninput="recalcInlineTotal('${g.id}')">
-            </div>
-            <div class="score-col">
-              <label for="pres-${g.id}">Presentation (0-10)</label>
-              <input type="number" id="pres-${g.id}" min="0" max="10" value="${s.presentation}" required oninput="recalcInlineTotal('${g.id}')">
-            </div>
-            <div class="score-total-display">
-              <span class="st-label">Total / 50</span>
-              <span class="st-num" id="total-${g.id}">${s.total}</span>
-            </div>
-          </div>
-
-          <div class="scoring-footer">
-            <input type="text" id="remarks-${g.id}" placeholder="Faculty evaluation remarks & feedback..." value="${escapeHtml(s.remarks || '')}">
-            <button type="submit" class="btn btn-primary btn-sm" id="btn-score-${g.id}">
-              <i class="fa-solid fa-check"></i> Save Score
+          <div class="admin-group-actions-right">
+            <button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation(); promptDeleteGroup('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Delete Group">
+              <i class="fa-regular fa-trash-can" style="color: var(--danger);"></i> Delete
+            </button>
+            <button type="button" class="toggle-details-btn" id="toggle-btn-${g.id}">
+              <span class="btn-text-state">${isExpanded ? 'Hide Project Details' : 'View Project &amp; Steps'}</span>
+              <i class="fa-solid fa-chevron-down"></i>
             </button>
           </div>
-        </form>
+        </div>
+
+        <!-- Group Full Details & 5-Step Evaluation Portal (Hidden by default, shown on click) -->
+        <div class="admin-group-details-body" id="group-details-${g.id}" style="display: ${isExpanded ? 'block' : 'none'};">
+          <!-- 5-Step Detailed Narrative with Per-Step Verification for Faculty -->
+          <div class="admin-steps-container">
+            <div class="admin-steps-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <span><i class="fa-solid fa-list-check"></i> Per-Step Verification &amp; Marking Portal</span>
+              <small style="color: var(--text-muted); font-size: 0.8rem;">Students can only proceed to Step N once Step N-1 is Approved</small>
+            </div>
+
+            <!-- Step 1 Verification Card -->
+            <div class="admin-step-verification-card">
+              <div class="asv-header">
+                <span class="asv-title">Step 1: Problem Statement &amp; Need (Max 15 Pts Innovation)</span>
+                ${renderAdminStepBadge(g.step1_status)}
+              </div>
+              <div class="asv-content-preview">${g.step1_problem_statement ? escapeHtml(g.step1_problem_statement) : '<em class="empty-italic">No problem statement submitted yet</em>'}</div>
+              <div class="asv-actions">
+                <input type="text" id="asv-remarks-1-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 1..." value="${escapeHtml(g.step1_remarks || '')}">
+                <button type="button" class="btn btn-sm ${g.step1_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 1, 'approved')">
+                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 1
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 1, 'rejected')">
+                  <i class="fa-solid fa-xmark"></i> Request Changes
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 2 Verification Card -->
+            <div class="admin-step-verification-card">
+              <div class="asv-header">
+                <span class="asv-title">Step 2: Market Research &amp; Validation (Max 10 Pts Feasibility)</span>
+                ${renderAdminStepBadge(g.step2_status)}
+              </div>
+              <div class="asv-content-preview">${g.step2_market_research ? escapeHtml(g.step2_market_research) : '<em class="empty-italic">No market research submitted yet</em>'}</div>
+              <div class="asv-actions">
+                <input type="text" id="asv-remarks-2-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 2..." value="${escapeHtml(g.step2_remarks || '')}">
+                <button type="button" class="btn btn-sm ${g.step2_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 2, 'approved')">
+                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 2
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 2, 'rejected')">
+                  <i class="fa-solid fa-xmark"></i> Request Changes
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 3 Verification Card -->
+            <div class="admin-step-verification-card">
+              <div class="asv-header">
+                <span class="asv-title">Step 3: Innovative Solution &amp; Prototype (Max 15 Pts Solution)</span>
+                ${renderAdminStepBadge(g.step3_status)}
+              </div>
+              <div class="asv-content-preview">${g.step3_innovative_solution ? escapeHtml(g.step3_innovative_solution) : '<em class="empty-italic">No prototype details submitted yet</em>'}</div>
+              <div class="asv-actions">
+                <input type="text" id="asv-remarks-3-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 3..." value="${escapeHtml(g.step3_remarks || '')}">
+                <button type="button" class="btn btn-sm ${g.step3_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 3, 'approved')">
+                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 3
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 3, 'rejected')">
+                  <i class="fa-solid fa-xmark"></i> Request Changes
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 4 Verification Card -->
+            <div class="admin-step-verification-card">
+              <div class="asv-header">
+                <span class="asv-title">Step 4: Feasibility Study &amp; Business Model (Max 10 Pts Feasibility)</span>
+                ${renderAdminStepBadge(g.step4_status)}
+              </div>
+              <div class="asv-content-preview">${g.step4_feasibility_business_model ? escapeHtml(g.step4_feasibility_business_model) : '<em class="empty-italic">No feasibility study submitted yet</em>'}</div>
+              <div class="asv-actions">
+                <input type="text" id="asv-remarks-4-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 4..." value="${escapeHtml(g.step4_remarks || '')}">
+                <button type="button" class="btn btn-sm ${g.step4_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 4, 'approved')">
+                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 4
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 4, 'rejected')">
+                  <i class="fa-solid fa-xmark"></i> Request Changes
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 5 Verification Card -->
+            <div class="admin-step-verification-card">
+              <div class="asv-header">
+                <span class="asv-title">Step 5: Digital Marketing &amp; Pitch Deck (Max 10 Pts Presentation)</span>
+                ${renderAdminStepBadge(g.step5_status)}
+              </div>
+              <div class="asv-content-preview">${g.step5_marketing_presentation ? escapeHtml(g.step5_marketing_presentation) : '<em class="empty-italic">No pitch presentation submitted yet</em>'}</div>
+              <div class="asv-actions">
+                <input type="text" id="asv-remarks-5-${g.id}" placeholder="Faculty evaluation remarks / instructions for Step 5..." value="${escapeHtml(g.step5_remarks || '')}">
+                <button type="button" class="btn btn-sm ${g.step5_status === 'approved' ? 'btn-primary' : 'btn-outline'}" onclick="handleVerifyStep('${g.id}', 5, 'approved')">
+                  <i class="fa-solid fa-circle-check"></i> Mark Completed &amp; Approve Step 5
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="handleVerifyStep('${g.id}', 5, 'rejected')">
+                  <i class="fa-solid fa-xmark"></i> Request Changes
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Budget & Pitch Strategy Overview for Faculty -->
+          ${renderAdminBudgetAndPitchSummary(g)}
+
+          <!-- Inline Scoring UI -->
+          <form class="scoring-form" onsubmit="handleSaveScore(event, '${g.id}')">
+            <div class="scoring-grid">
+              <div class="score-col">
+                <label for="innov-${g.id}">Innovation (0-15)</label>
+                <input type="number" id="innov-${g.id}" min="0" max="15" value="${s.innovation}" required oninput="recalcInlineTotal('${g.id}')">
+              </div>
+              <div class="score-col">
+                <label for="feas-${g.id}">Feasibility (0-10)</label>
+                <input type="number" id="feas-${g.id}" min="0" max="10" value="${s.feasibility}" required oninput="recalcInlineTotal('${g.id}')">
+              </div>
+              <div class="score-col">
+                <label for="sol-${g.id}">Solution (0-15)</label>
+                <input type="number" id="sol-${g.id}" min="0" max="15" value="${s.solution}" required oninput="recalcInlineTotal('${g.id}')">
+              </div>
+              <div class="score-col">
+                <label for="pres-${g.id}">Presentation (0-10)</label>
+                <input type="number" id="pres-${g.id}" min="0" max="10" value="${s.presentation}" required oninput="recalcInlineTotal('${g.id}')">
+              </div>
+              <div class="score-total-display">
+                <span class="st-label">Total / 50</span>
+                <span class="st-num" id="total-${g.id}">${s.total}</span>
+              </div>
+            </div>
+
+            <div class="scoring-footer">
+              <input type="text" id="remarks-${g.id}" placeholder="Faculty evaluation remarks & feedback..." value="${escapeHtml(s.remarks || '')}">
+              <button type="submit" class="btn btn-primary btn-sm" id="btn-score-${g.id}">
+                <i class="fa-solid fa-check"></i> Save Score
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     `;
   }).join("");
+}
+
+// Interactive Toggle for Faculty: Click a specific group to view/hide its detailed steps and evaluation forms
+function toggleGroupDetails(groupId) {
+  const card = document.getElementById(`group-card-${groupId}`);
+  const details = document.getElementById(`group-details-${groupId}`);
+  const btn = document.getElementById(`toggle-btn-${groupId}`);
+  if (!details || !card) return;
+
+  const isHidden = details.style.display === "none";
+  if (isHidden) {
+    expandedAdminGroupIds.add(groupId);
+    details.style.display = "block";
+    card.classList.add("is-expanded");
+    if (btn) {
+      btn.querySelector(".btn-text-state").textContent = "Hide Project Details";
+    }
+  } else {
+    expandedAdminGroupIds.delete(groupId);
+    details.style.display = "none";
+    card.classList.remove("is-expanded");
+    if (btn) {
+      btn.querySelector(".btn-text-state").textContent = "View Project & Steps";
+    }
+  }
 }
 
 function renderAdminStepBadge(statusVal) {
