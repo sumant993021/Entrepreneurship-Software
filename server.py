@@ -944,6 +944,9 @@ async def update_group_budget(group_id: str, req: UpdateBudgetRequest, user: Use
     if user.role != "faculty" and user.id not in member_user_ids:
         raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to manage this budget.")
 
+    if user.role != "faculty" and group.step4_status == "approved":
+        raise HTTPException(status_code=400, detail="Step 4 (Feasibility & Budget Model) has already been approved and finalized by faculty. Budget allocation is locked.")
+
     # Validate that total budget does not exceed ₹1,00,000
     total_cost = sum(item.cost for item in req.budget_items)
     if total_cost > 100000.0:
@@ -973,6 +976,9 @@ async def update_group_pitch(group_id: str, req: UpdatePitchRequest, user: User 
     member_user_ids = json.loads(group.member_user_ids_json or "[]")
     if user.role != "faculty" and user.id not in member_user_ids:
         raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to manage this pitch strategy.")
+
+    if user.role != "faculty" and group.step5_status == "approved":
+        raise HTTPException(status_code=400, detail="Step 5 (Digital Marketing & Pitch Presentation) has already been approved and finalized by faculty. Pitch strategy is locked.")
 
     group.pitch_strategy_json = json.dumps(req.dict())
     db.commit()

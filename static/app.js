@@ -33,9 +33,19 @@ function showToast(message, type = "info") {
   }, 3500);
 }
 
-// WebSocket Setup (Real-time fallback & notification channel)
+// WebSocket Setup (Optional notification channel when FastAPI is used; fallback cleanly on pure Firebase)
 function setupWebSocket() {
   if (socket) return;
+  // If running on firebase hosting or without WS support, Firebase Firestore handles 100% of live events
+  if (window.location.hostname.includes("firebaseapp.com") || window.location.hostname.includes("web.app") || window.location.hostname.includes("vercel.app")) {
+    const indicator = document.getElementById("liveIndicator");
+    if (indicator) {
+      indicator.style.display = "flex";
+      indicator.title = "Real-Time Cloud Firestore Sync Active";
+    }
+    return;
+  }
+
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/ws`;
 
@@ -64,10 +74,12 @@ function setupWebSocket() {
 
     socket.onclose = () => {
       socket = null;
-      setTimeout(setupWebSocket, 4000);
+    };
+    socket.onerror = () => {
+      socket = null;
     };
   } catch (e) {
-    console.warn("WebSocket init error:", e);
+    // Clean fallback to Firestore
   }
 }
 
@@ -946,12 +958,25 @@ function rebuildBudgetTable() {
   const tbody = document.getElementById("budgetTableBody");
   if (!tbody) return;
 
+  const isStep4Approved = currentMyGroup && currentMyGroup.step4_status === "approved";
+  const addBtn = document.querySelector("button[onclick='addBudgetRow()']");
+  const saveBtn = document.getElementById("saveBudgetBtn");
+  if (addBtn) addBtn.disabled = isStep4Approved;
+  if (saveBtn) {
+    saveBtn.disabled = isStep4Approved;
+    if (isStep4Approved) {
+      saveBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Budget Finalized &amp; Locked`;
+      saveBtn.style.opacity = "0.7";
+      saveBtn.style.cursor = "not-allowed";
+    }
+  }
+
   tbody.innerHTML = "";
   currentBudgetItems.forEach((b, idx) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>
-        <select onchange="updateBudgetItem(${idx}, 'category', this.value)">
+        <select ${isStep4Approved ? "disabled" : ""} onchange="updateBudgetItem(${idx}, 'category', this.value)">
           <option value="Hardware & Prototype" ${b.category === "Hardware & Prototype" ? "selected" : ""}>Hardware & Prototype</option>
           <option value="Tooling & Fabrication" ${b.category === "Tooling & Fabrication" ? "selected" : ""}>Tooling & Fabrication</option>
           <option value="Software & Cloud" ${b.category === "Software & Cloud" ? "selected" : ""}>Software & Cloud</option>
@@ -962,18 +987,20 @@ function rebuildBudgetTable() {
         </select>
       </td>
       <td>
-        <input type="text" value="${escapeHtml(b.item || '')}" placeholder="Item description" oninput="updateBudgetItem(${idx}, 'item', this.value)">
+        <input type="text" ${isStep4Approved ? "disabled" : ""} value="${escapeHtml(b.item || '')}" placeholder="Item description" oninput="updateBudgetItem(${idx}, 'item', this.value)">
       </td>
       <td>
-        <input type="number" min="0" max="100000" step="500" value="${b.cost || 0}" placeholder="Cost in ₹" oninput="updateBudgetItem(${idx}, 'cost', parseFloat(this.value) || 0)">
+        <input type="number" ${isStep4Approved ? "disabled" : ""} min="0" max="100000" step="500" value="${b.cost || 0}" placeholder="Cost in ₹" oninput="updateBudgetItem(${idx}, 'cost', parseFloat(this.value) || 0)">
       </td>
       <td>
-        <input type="text" value="${escapeHtml(b.notes || '')}" placeholder="Spec / justification" oninput="updateBudgetItem(${idx}, 'notes', this.value)">
+        <input type="text" ${isStep4Approved ? "disabled" : ""} value="${escapeHtml(b.notes || '')}" placeholder="Spec / justification" oninput="updateBudgetItem(${idx}, 'notes', this.value)">
       </td>
       <td style="text-align: center;">
-        <button type="button" class="btn-icon" style="color: var(--danger);" onclick="removeBudgetRow(${idx})" title="Remove item">
-          <i class="fa-regular fa-trash-can"></i>
-        </button>
+        ${isStep4Approved ? `<span style="color: var(--text-muted); font-size: 0.8rem;"><i class="fa-solid fa-lock"></i></span>` : `
+          <button type="button" class="btn-icon" style="color: var(--danger);" onclick="removeBudgetRow(${idx})" title="Remove item">
+            <i class="fa-regular fa-trash-can"></i>
+          </button>
+        `}
       </td>
     `;
     tbody.appendChild(tr);
@@ -1075,6 +1102,24 @@ async function handleSaveBudget() {
 // ----------------- PITCHING STRATEGY LOGIC -----------------
 function renderStudentPitch(pitch) {
   pitch = pitch || {};
+  const isStep5Approved = currentMyGroup && currentMyGroup.step5_status === "approved";
+  const pitchIds = ["pitchHook", "pitchProblem", "pitchUSP", "pitchMarket", "pitchModel", "pitchAsk", "pitchDeckUrl"];
+
+  pitchIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = isStep5Approved;
+  });
+
+  const btn = document.getElementById("savePitchBtn");
+  if (btn) {
+    btn.disabled = isStep5Approved;
+    if (isStep5Approved) {
+      btn.innerHTML = `<i class="fa-solid fa-lock"></i> Pitch Strategy Finalized &amp; Locked`;
+      btn.style.opacity = "0.7";
+      btn.style.cursor = "not-allowed";
+    }
+  }
+
   const setVal = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.value = val || "";
