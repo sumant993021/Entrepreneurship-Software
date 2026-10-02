@@ -2666,4 +2666,18 @@ tr:hover td {
   }
 }
 
+.ecs-batch-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px dashed rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.6rem;
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
 

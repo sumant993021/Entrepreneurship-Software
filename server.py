@@ -555,6 +555,8 @@ def register_student(req: StudentRegisterRequest, db: Session = Depends(get_db))
     if existing:
         raise HTTPException(status_code=400, detail="Account with this email already exists")
 
+    batch_val = "—" if req.department == "ECS" else req.batch
+
     user = User(
         id=str(uuid.uuid4()),
         email=email_clean,
@@ -564,7 +566,7 @@ def register_student(req: StudentRegisterRequest, db: Session = Depends(get_db))
         department=req.department,
         student_class=req.student_class,
         division=req.division,
-        batch=req.batch
+        batch=batch_val
     )
     db.add(user)
     db.commit()
@@ -794,6 +796,8 @@ def create_group(req: CreateGroupRequest, user: User = Depends(get_current_user)
     if user.name not in names:
         names.insert(0, user.name)
 
+    batch_val = "—" if req.department == "ECS" else req.batch
+
     invite_code = generate_invite_code(db)
     new_group = Group(
         id=str(uuid.uuid4()),
@@ -801,7 +805,7 @@ def create_group(req: CreateGroupRequest, user: User = Depends(get_current_user)
         department=req.department,
         student_class=req.student_class,
         division=req.division,
-        batch=req.batch,
+        batch=batch_val,
         invite_code=invite_code,
         member_names_json=json.dumps(names),
         member_user_ids_json=json.dumps([user.id]),
@@ -1257,7 +1261,7 @@ def get_all_groups(
         query = query.filter(Group.student_class == student_class)
     if division and division != "All":
         query = query.filter(Group.division == division)
-    if batch and batch != "All":
+    if batch and batch != "All" and department != "ECS":
         query = query.filter(Group.batch == batch)
     
     groups = query.order_by(Group.created_at.desc()).all()
@@ -1374,7 +1378,7 @@ def get_leaderboard(
         query = query.filter(Group.student_class == student_class)
     if division and division != "All":
         query = query.filter(Group.division == division)
-    if batch and batch != "All":
+    if batch and batch != "All" and department != "ECS":
         query = query.filter(Group.batch == batch)
 
     groups = query.all()

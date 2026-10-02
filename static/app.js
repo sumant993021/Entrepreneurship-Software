@@ -256,7 +256,11 @@ function showAppUI() {
   document.getElementById("userNameDisplay").textContent = currentUser.name;
   let roleDesc = currentUser.role.toUpperCase();
   if (currentUser.role === "student") {
-    roleDesc += ` • ${currentUser.department} ${currentUser.division} (${currentUser.batch})`;
+    if (currentUser.department === "ECS") {
+      roleDesc += ` • ${currentUser.department} ${currentUser.division}`;
+    } else {
+      roleDesc += ` • ${currentUser.department} ${currentUser.division} (${currentUser.batch || 'Batch 1'})`;
+    }
   } else if (currentUser.role === "faculty") {
     roleDesc += ` • Faculty`;
   }
@@ -288,11 +292,12 @@ function renderFacultyAssignedBadges() {
   if (!container || !currentUser || !currentUser.assignments) return;
 
   const html = currentUser.assignments.map(a => {
-    const batches = (a.batches || []).join(", ");
+    const isEcs = a.department === "ECS";
+    const batchInfo = isEcs ? `<span class="ecs-batch-note"><i class="fa-solid fa-layer-group"></i> Divs Only (No Batches)</span>` : `• <strong>${(a.batches || []).join(", ")}</strong>`;
     return `
       <div class="assigned-pill">
         <span class="badge-dept">${a.department}</span>
-        <span class="ap-details">${a.student_class} • ${a.division} • <strong>${batches}</strong></span>
+        <span class="ap-details">${a.student_class} • ${a.division} ${batchInfo}</span>
       </div>
     `;
   }).join("");
@@ -400,6 +405,73 @@ function switchRegRole(role) {
   }
 }
 
+// Department change handler for Student Registration form
+function handleStudentDeptChange() {
+  const deptSelect = document.getElementById("stuRegDept");
+  const batchGroup = document.getElementById("stuRegBatchGroup");
+  const batchSelect = document.getElementById("stuRegBatch");
+  if (!deptSelect || !batchGroup || !batchSelect) return;
+
+  if (deptSelect.value === "ECS") {
+    batchGroup.style.display = "none";
+    batchSelect.required = false;
+    batchSelect.value = "—";
+  } else {
+    batchGroup.style.display = "block";
+    batchSelect.required = true;
+    if (batchSelect.value === "—" || !batchSelect.value) {
+      batchSelect.value = "Batch 1";
+    }
+  }
+}
+
+// Department change handler for Create Group form
+function handleNewGroupDeptChange() {
+  const deptSelect = document.getElementById("newGroupDept");
+  const batchGroup = document.getElementById("newGroupBatchGroup");
+  const batchSelect = document.getElementById("newGroupBatch");
+  if (!deptSelect || !batchGroup || !batchSelect) return;
+
+  if (deptSelect.value === "ECS") {
+    batchGroup.style.display = "none";
+    batchSelect.required = false;
+    batchSelect.value = "—";
+  } else {
+    batchGroup.style.display = "block";
+    batchSelect.required = true;
+    if (batchSelect.value === "—" || !batchSelect.value) {
+      batchSelect.value = "Batch 1";
+    }
+  }
+}
+
+// Department change handler for a Faculty Assignment Row
+function handleFacultyRowDeptChange(deptSelect, rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const batchContainer = row.querySelector(".rf-col-batch");
+  if (!batchContainer) return;
+
+  if (deptSelect.value === "ECS") {
+    batchContainer.innerHTML = `
+      <label>Batches</label>
+      <div class="ecs-batch-note">
+        <i class="fa-solid fa-circle-check"></i> Div A / Div B Only (No Batches)
+      </div>
+    `;
+  } else {
+    batchContainer.innerHTML = `
+      <label>Batches (Check all)</label>
+      <div class="batch-checkboxes">
+        <label><input type="checkbox" value="Batch 1" checked> B1</label>
+        <label><input type="checkbox" value="Batch 2" checked> B2</label>
+        <label><input type="checkbox" value="Batch 3"> B3</label>
+        <label><input type="checkbox" value="Batch 4"> B4</label>
+      </div>
+    `;
+  }
+}
+
 // Multi-Department Faculty Assignment Row Builder
 let assignmentRowCounter = 0;
 function addFacultyAssignmentRow() {
@@ -413,7 +485,7 @@ function addFacultyAssignmentRow() {
     <div class="row-fields-grid">
       <div class="rf-col">
         <label>Department</label>
-        <select class="f-dept" required>
+        <select class="f-dept" required onchange="handleFacultyRowDeptChange(this, '${rowId}')">
           <option value="ECS">ECS</option>
           <option value="Instrumentation">Instrumentation</option>
         </select>
@@ -435,13 +507,10 @@ function addFacultyAssignmentRow() {
         </select>
       </div>
 
-      <div class="rf-col">
-        <label>Batches (Check all)</label>
-        <div class="batch-checkboxes">
-          <label><input type="checkbox" value="Batch 1" checked> B1</label>
-          <label><input type="checkbox" value="Batch 2" checked> B2</label>
-          <label><input type="checkbox" value="Batch 3"> B3</label>
-          <label><input type="checkbox" value="Batch 4"> B4</label>
+      <div class="rf-col rf-col-batch">
+        <label>Batches</label>
+        <div class="ecs-batch-note">
+          <i class="fa-solid fa-circle-check"></i> Div A / Div B Only (No Batches)
         </div>
       </div>
     </div>
@@ -666,7 +735,8 @@ async function handleStudentRegister(e) {
   const department = document.getElementById("stuRegDept").value;
   const student_class = document.getElementById("stuRegClass").value;
   const division = document.getElementById("stuRegDiv").value;
-  const batch = document.getElementById("stuRegBatch").value;
+  const rawBatch = document.getElementById("stuRegBatch") ? document.getElementById("stuRegBatch").value : "—";
+  const batch = department === "ECS" ? "—" : rawBatch;
   const password = document.getElementById("stuRegPassword").value;
 
   try {
@@ -705,7 +775,10 @@ async function handleStudentRegister(e) {
       localStorage.setItem("edmg_user", JSON.stringify(currentUser));
       syncUserProfileToFirestore(currentUser);
 
-      showToast(`Registered as student for ${department} ${division} (${batch})`, "success");
+      const regMsg = department === "ECS" 
+        ? `Registered as student for ${department} ${division}` 
+        : `Registered as student for ${department} ${division} (${batch})`;
+      showToast(regMsg, "success");
       setupWebSocket();
       showAppUI();
       loadInitialData();
@@ -738,7 +811,10 @@ async function handleStudentRegister(e) {
 
     syncUserProfileToFirestore(currentUser);
 
-    showToast(`Registered as student for ${department} ${division} (${batch})`, "success");
+    const regMsg = department === "ECS" 
+      ? `Registered as student for ${department} ${division}` 
+      : `Registered as student for ${department} ${division} (${batch})`;
+    showToast(regMsg, "success");
     setupWebSocket();
     showAppUI();
     loadInitialData();
@@ -764,10 +840,15 @@ async function handleFacultyRegister(e) {
     const department = r.querySelector(".f-dept").value;
     const student_class = r.querySelector(".f-class").value;
     const division = r.querySelector(".f-div").value;
-    const checkedBatches = Array.from(r.querySelectorAll(".batch-checkboxes input:checked")).map(cb => cb.value);
 
-    if (checkedBatches.length > 0) {
-      assignments.push({ department, student_class, division, batches: checkedBatches });
+    if (department === "ECS") {
+      // ECS has no batches: assign whole division
+      assignments.push({ department, student_class, division, batches: ["—"] });
+    } else {
+      const checkedBatches = Array.from(r.querySelectorAll(".batch-checkboxes input:checked")).map(cb => cb.value);
+      if (checkedBatches.length > 0) {
+        assignments.push({ department, student_class, division, batches: checkedBatches });
+      }
     }
   });
 
@@ -1041,13 +1122,19 @@ async function loadMyGroup() {
       if (!groupDoc) {
         currentMyGroup = null;
         document.getElementById("studentGreetingName").textContent = currentUser.name;
-        document.getElementById("studentGreetingAlloc").textContent = `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division} • ${currentUser.batch}`;
+        const allocStr = currentUser.department === "ECS"
+          ? `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division}`
+          : `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division} • ${currentUser.batch || 'Batch 1'}`;
+        document.getElementById("studentGreetingAlloc").textContent = allocStr;
         
         if (document.getElementById("newGroupDept")) {
           document.getElementById("newGroupDept").value = currentUser.department;
+          handleNewGroupDeptChange();
           document.getElementById("newGroupClass").value = currentUser.student_class;
           document.getElementById("newGroupDiv").value = currentUser.division;
-          document.getElementById("newGroupBatch").value = currentUser.batch;
+          if (currentUser.department !== "ECS" && currentUser.batch) {
+            document.getElementById("newGroupBatch").value = currentUser.batch;
+          }
         }
         
         noGroupState.style.display = "block";
@@ -1079,14 +1166,20 @@ async function loadMyGroup() {
     if (!data.has_group || !data.group) {
       currentMyGroup = null;
       document.getElementById("studentGreetingName").textContent = currentUser.name;
-      document.getElementById("studentGreetingAlloc").textContent = `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division} • ${currentUser.batch}`;
+      const allocStr = currentUser.department === "ECS"
+        ? `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division}`
+        : `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division} • ${currentUser.batch || 'Batch 1'}`;
+      document.getElementById("studentGreetingAlloc").textContent = allocStr;
       
       // Pre-fill creation form fields from student registration
       if (document.getElementById("newGroupDept")) {
         document.getElementById("newGroupDept").value = currentUser.department;
+        handleNewGroupDeptChange();
         document.getElementById("newGroupClass").value = currentUser.student_class;
         document.getElementById("newGroupDiv").value = currentUser.division;
-        document.getElementById("newGroupBatch").value = currentUser.batch;
+        if (currentUser.department !== "ECS" && currentUser.batch) {
+          document.getElementById("newGroupBatch").value = currentUser.batch;
+        }
       }
       
       noGroupState.style.display = "block";
@@ -1110,7 +1203,15 @@ function renderMyGroupDetails(group) {
   document.getElementById("activeGroupDept").textContent = group.department;
   document.getElementById("activeGroupClass").textContent = group.student_class;
   document.getElementById("activeGroupDiv").textContent = group.division;
-  document.getElementById("activeGroupBatch").textContent = group.batch;
+  const batchEl = document.getElementById("activeGroupBatch");
+  if (batchEl) {
+    if (group.department === "ECS" || !group.batch || group.batch === "—") {
+      batchEl.style.display = "none";
+    } else {
+      batchEl.style.display = "inline-block";
+      batchEl.textContent = group.batch;
+    }
+  }
 
   const leaderBadge = document.getElementById("activeGroupLeaderBadge");
   if (group.is_leader) {
@@ -1886,7 +1987,7 @@ function exportVentureDossier() {
       <div class="dossier-header">
         <div>
           <h1 class="dossier-title">${escapeHtml(g.name)}</h1>
-          <div class="dossier-meta">${escapeHtml(g.department)} • ${escapeHtml(g.student_class)} • ${escapeHtml(g.division)} • ${escapeHtml(g.batch)}</div>
+          <div class="dossier-meta">${escapeHtml(g.department)} • ${escapeHtml(g.student_class)} • ${escapeHtml(g.division)}${(g.department !== "ECS" && g.batch && g.batch !== "—") ? ` • ${escapeHtml(g.batch)}` : ''}</div>
         </div>
         <div style="text-align: right;">
           <span class="tag-pill">E&amp;DM CAPSTONE DOSSIER</span>
@@ -2022,7 +2123,8 @@ async function handleCreateGroup(e) {
   const department = document.getElementById("newGroupDept").value;
   const student_class = document.getElementById("newGroupClass").value;
   const division = document.getElementById("newGroupDiv").value;
-  const batch = document.getElementById("newGroupBatch").value;
+  const rawBatch = document.getElementById("newGroupBatch") ? document.getElementById("newGroupBatch").value : "—";
+  const batch = department === "ECS" ? "—" : rawBatch;
   const rawMembers = document.getElementById("newMemberNames").value;
   const member_names = rawMembers.split(",").map(s => s.trim()).filter(Boolean);
 
@@ -2247,7 +2349,19 @@ async function loadAdminGroups(showToastNotice = false) {
   const dept = document.getElementById("filterDept").value;
   const cls = document.getElementById("filterClass").value;
   const div = document.getElementById("filterDiv").value;
-  const batch = document.getElementById("filterBatch").value;
+  const rawBatch = document.getElementById("filterBatch").value;
+  const batch = dept === "ECS" ? "All" : rawBatch;
+
+  const batchSelect = document.getElementById("filterBatch");
+  if (batchSelect) {
+    if (dept === "ECS") {
+      batchSelect.disabled = true;
+      batchSelect.title = "No batches in ECS department";
+    } else {
+      batchSelect.disabled = false;
+      batchSelect.title = "";
+    }
+  }
 
   if (IS_PURE_FIREBASE && window.firestoreDb) {
     try {
@@ -2357,7 +2471,7 @@ function renderAdminGroups(groups) {
               <span class="badge-dept">${g.department}</span>
               <span class="badge-class">${g.student_class}</span>
               <span class="badge-div">${g.division}</span>
-              <span class="badge-batch">${g.batch}</span>
+              ${(g.department !== "ECS" && g.batch && g.batch !== "—") ? `<span class="badge-batch">${g.batch}</span>` : ''}
               <span class="badge-code">Code: ${g.invite_code}</span>
               <span class="badge" style="background: ${approvedCount === 5 ? '#10b981' : (approvedCount > 0 ? '#f59e0b' : '#64748b')}; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px;">
                 <i class="fa-solid fa-bars-progress"></i> ${approvedCount}/5 Steps Approved
@@ -2838,7 +2952,19 @@ async function executeDeleteGroup() {
 async function loadLeaderboard(showToastNotice = false) {
   const dept = document.getElementById("lbFilterDept") ? document.getElementById("lbFilterDept").value : "All";
   const div = document.getElementById("lbFilterDiv") ? document.getElementById("lbFilterDiv").value : "All";
-  const batch = document.getElementById("lbFilterBatch") ? document.getElementById("lbFilterBatch").value : "All";
+  const rawBatch = document.getElementById("lbFilterBatch") ? document.getElementById("lbFilterBatch").value : "All";
+  const batch = dept === "ECS" ? "All" : rawBatch;
+
+  const lbBatchSelect = document.getElementById("lbFilterBatch");
+  if (lbBatchSelect) {
+    if (dept === "ECS") {
+      lbBatchSelect.disabled = true;
+      lbBatchSelect.title = "No batches in ECS department";
+    } else {
+      lbBatchSelect.disabled = false;
+      lbBatchSelect.title = "";
+    }
+  }
 
   if (IS_PURE_FIREBASE && window.firestoreDb) {
     try {
@@ -2936,6 +3062,7 @@ function renderLeaderboard(list, bestProject) {
   const showcase = document.getElementById("bestProjectShowcase");
   if (bestProject) {
     showcase.style.display = "block";
+    const bestHasBatch = bestProject.department !== "ECS" && bestProject.batch && bestProject.batch !== "—";
     showcase.innerHTML = `
       <div class="best-project-card">
         <div class="best-badge-row">
@@ -2951,7 +3078,7 @@ function renderLeaderboard(list, bestProject) {
           <span class="badge-dept">${bestProject.department}</span>
           <span class="badge-class">${bestProject.student_class}</span>
           <span class="badge-div">${bestProject.division}</span>
-          <span class="badge-batch">${bestProject.batch}</span>
+          ${bestHasBatch ? `<span class="badge-batch">${bestProject.batch}</span>` : ''}
           <h3>${escapeHtml(bestProject.name)}</h3>
         </div>
         <p class="best-members-list"><strong>Team Members:</strong> ${(bestProject.members || []).join(", ") || "N/A"}</p>
@@ -2994,6 +3121,8 @@ function renderLeaderboard(list, bestProject) {
     else if (item.rank === 2) rankBadgeClass += " rank-2";
     else if (item.rank === 3) rankBadgeClass += " rank-3";
 
+    const itemHasBatch = item.department !== "ECS" && item.batch && item.batch !== "—";
+
     return `
       <tr>
         <td class="text-center">
@@ -3006,7 +3135,7 @@ function renderLeaderboard(list, bestProject) {
           <strong>${item.department}</strong><br><small class="text-muted">${item.student_class}</small>
         </td>
         <td>
-          <span class="badge-div">${item.division}</span> <span class="badge-batch">${item.batch}</span>
+          <span class="badge-div">${item.division}</span> ${itemHasBatch ? `<span class="badge-batch">${item.batch}</span>` : ''}
         </td>
         <td>
           <small style="color: var(--text-secondary);">${(item.members || []).join(", ") || "—"}</small>
@@ -3070,11 +3199,17 @@ function renderAdminUsers(users) {
 
     let allocInfo = "—";
     if (u.role === "faculty" && u.assignments && u.assignments.length > 0) {
-      allocInfo = u.assignments.map(a => 
-        `<div><strong>${a.department}</strong> (${a.student_class}, ${a.division}) • [${(a.batches || []).join(", ")}]</div>`
-      ).join("");
+      allocInfo = u.assignments.map(a => {
+        const isEcs = a.department === "ECS";
+        const batchesStr = isEcs ? "All Batches" : (a.batches || []).join(", ");
+        return `<div><strong>${a.department}</strong> (${a.student_class}, ${a.division}) • [${batchesStr}]</div>`;
+      }).join("");
     } else if (u.role === "student") {
-      allocInfo = `<div>${u.department} • ${u.student_class} • ${u.division} • <strong>${u.batch}</strong></div>`;
+      if (u.department === "ECS") {
+        allocInfo = `<div>${u.department} • ${u.student_class} • ${u.division}</div>`;
+      } else {
+        allocInfo = `<div>${u.department} • ${u.student_class} • ${u.division} • <strong>${u.batch || 'Batch 1'}</strong></div>`;
+      }
     }
 
     return `

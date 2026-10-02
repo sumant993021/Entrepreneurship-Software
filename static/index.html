@@ -134,8 +134,8 @@
               <div class="form-row-2">
                 <div class="form-group">
                   <label for="stuRegDept">Department *</label>
-                  <select id="stuRegDept" required>
-                    <option value="ECS">ECS</option>
+                  <select id="stuRegDept" required onchange="handleStudentDeptChange()">
+                    <option value="ECS">ECS (Electronics &amp; Computer Science)</option>
                     <option value="Instrumentation">Instrumentation</option>
                   </select>
                 </div>
@@ -158,9 +158,9 @@
                   </select>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" id="stuRegBatchGroup" style="display: none;">
                   <label for="stuRegBatch">Assigned Lab Batch *</label>
-                  <select id="stuRegBatch" required>
+                  <select id="stuRegBatch">
                     <option value="Batch 1">Batch 1</option>
                     <option value="Batch 2">Batch 2</option>
                     <option value="Batch 3">Batch 3</option>
@@ -270,8 +270,8 @@
                 <div class="form-row-2">
                   <div class="form-group">
                     <label for="newGroupDept">Department *</label>
-                    <select id="newGroupDept" required>
-                      <option value="ECS">ECS</option>
+                    <select id="newGroupDept" required onchange="handleNewGroupDeptChange()">
+                      <option value="ECS">ECS (Electronics &amp; Computer Science)</option>
                       <option value="Instrumentation">Instrumentation</option>
                     </select>
                   </div>
@@ -294,9 +294,9 @@
                     </select>
                   </div>
 
-                  <div class="form-group">
+                  <div class="form-group" id="newGroupBatchGroup" style="display: none;">
                     <label for="newGroupBatch">Batch *</label>
-                    <select id="newGroupBatch" required>
+                    <select id="newGroupBatch">
                       <option value="Batch 1">Batch 1</option>
                       <option value="Batch 2">Batch 2</option>
                       <option value="Batch 3">Batch 3</option>
@@ -1125,6 +1125,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="./firebase-config.js?v=3"></script>
-  <script src="./app.js?v=15"></script>
+  <script src="./app.js?v=16"></script>
 </body>
 </html>
