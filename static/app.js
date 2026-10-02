@@ -13,6 +13,10 @@ let myGroupFirestoreUnsub = null;
 let adminGroupsFirestoreUnsub = null;
 
 const API_BASE = window.location.origin;
+const IS_PURE_FIREBASE = window.location.hostname.includes("web.app") || 
+                         window.location.hostname.includes("firebaseapp.com") || 
+                         window.location.protocol === "file:" ||
+                         (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" && !window.location.port);
 
 // Toast Notifications
 function showToast(message, type = "info") {
@@ -135,6 +139,61 @@ function authHeaders() {
 }
 
 async function checkAuth() {
+  // If running pure Firebase, check Firebase Auth state
+  if (IS_PURE_FIREBASE && window.firebaseAuth) {
+    window.firebaseAuth.onAuthStateChanged(async (fbUser) => {
+      if (fbUser) {
+        authToken = await fbUser.getIdToken();
+        localStorage.setItem("edmg_token", authToken);
+        
+        // Attempt to fetch profile from Firestore
+        if (window.firestoreDb) {
+          try {
+            const userDoc = await window.firestoreDb.collection("users").doc(fbUser.uid).get();
+            if (userDoc.exists) {
+              currentUser = userDoc.data();
+              localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+            } else {
+              // Try finding user by email in users collection
+              const q = await window.firestoreDb.collection("users").where("email", "==", fbUser.email.toLowerCase()).limit(1).get();
+              if (!q.empty) {
+                currentUser = q.docs[0].data();
+                localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+              }
+            }
+          } catch (e) {
+            console.warn("Firestore user fetch error in checkAuth:", e);
+          }
+        }
+
+        if (!currentUser) {
+          const cached = localStorage.getItem("edmg_user");
+          if (cached) {
+            try { currentUser = JSON.parse(cached); } catch (e) {}
+          }
+        }
+
+        if (currentUser) {
+          showAppUI();
+          loadInitialData();
+          return;
+        }
+      }
+      
+      const cached = localStorage.getItem("edmg_user");
+      if (cached && authToken) {
+        try {
+          currentUser = JSON.parse(cached);
+          showAppUI();
+          loadInitialData();
+          return;
+        } catch (e) {}
+      }
+      showAuthUI();
+    });
+    return;
+  }
+
   if (!authToken) {
     showAuthUI();
     return;
@@ -406,10 +465,68 @@ function fillCreds(email, password) {
   document.getElementById("loginPassword").value = password;
 }
 
+// Known seed accounts fallback for instant access if offline/unseeded in Firestore
+const SEED_ACCOUNTS = {
+  "sumantdeshmukh.in@gmail.com": {
+    id: "37bfcb86-26ba-4253-a1f6-7d4ce822f4c0",
+    email: "sumantdeshmukh.in@gmail.com",
+    name: "Sumant Deshmukh",
+    role: "faculty",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 1",
+    assignments: [
+      { department: "ECS", student_class: "Third Year", division: "Div A", batches: ["Batch 1", "Batch 2", "Batch 3", "Batch 4"] },
+      { department: "Instrumentation", student_class: "Third Year", division: "Div A", batches: ["Batch 1", "Batch 2", "Batch 3", "Batch 4"] },
+      { department: "ECS", student_class: "Third Year", division: "Div B", batches: ["Batch 1", "Batch 2", "Batch 3", "Batch 4"] }
+    ]
+  },
+  "sumantdeshmukh39@gmail.com": {
+    id: "d5d9b147-f371-4295-b5f0-71527ac30263",
+    email: "sumantdeshmukh39@gmail.com",
+    name: "Abhishek",
+    role: "faculty",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 1",
+    assignments: [
+      { department: "ECS", student_class: "Third Year", division: "Div B", batches: ["Batch 1", "Batch 2", "Batch 3", "Batch 4"] },
+      { department: "Instrumentation", student_class: "Third Year", division: "Div A", batches: ["Batch 3", "Batch 4"] }
+    ]
+  },
+  "sumant9.cyber@gmail.com": {
+    id: "ef5475b0-15ee-4e83-aeb1-cb13c771f7f0",
+    email: "sumant9.cyber@gmail.com",
+    name: "Ninad",
+    role: "faculty",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 1",
+    assignments: [
+      { department: "ECS", student_class: "Third Year", division: "Div A", batches: ["Batch 1", "Batch 2", "Batch 3", "Batch 4"] },
+      { department: "Instrumentation", student_class: "Third Year", division: "Div A", batches: ["Batch 1", "Batch 2"] }
+    ]
+  },
+  "sd397388@gmail.com": {
+    id: "d722a5e8-c353-409c-b04f-c93852c29842",
+    email: "sd397388@gmail.com",
+    name: "Sumant Sanjay Deshmukh",
+    role: "student",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 4",
+    assignments: []
+  }
+};
+
 // Authentication Submissions with Firebase Auth & Firestore Sync
 async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById("loginEmail").value.trim();
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
   const password = document.getElementById("loginPassword").value;
   const submitBtn = document.getElementById("loginSubmitBtn");
 
@@ -419,25 +536,99 @@ async function handleLogin(e) {
       submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Signing In...`;
     }
 
-    // 1. Firebase Authentication (non-blocking for existing accounts)
+    if (IS_PURE_FIREBASE) {
+      if (!window.firebaseAuth) {
+        throw new Error("Firebase Auth service is unavailable. Please check your internet connection.");
+      }
+
+      let fbUser = null;
+      try {
+        const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+        fbUser = cred.user;
+      } catch (fbErr) {
+        // If account not created yet in Firebase Auth, auto-create it with user's credentials
+        if (fbErr.code === "auth/user-not-found" || fbErr.code === "auth/invalid-credential") {
+          try {
+            const newCred = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+            fbUser = newCred.user;
+          } catch (createErr) {
+            if (createErr.code === "auth/email-already-in-use") {
+              throw new Error("Incorrect password for this email account.");
+            }
+            throw new Error(createErr.message || "Failed to sign in via Firebase Auth.");
+          }
+        } else {
+          throw new Error(fbErr.message || "Firebase login failed.");
+        }
+      }
+
+      authToken = await fbUser.getIdToken();
+      localStorage.setItem("edmg_token", authToken);
+
+      // Load User Profile from Firestore
+      let userProfile = null;
+      if (window.firestoreDb) {
+        try {
+          const doc = await window.firestoreDb.collection("users").doc(fbUser.uid).get();
+          if (doc.exists) {
+            userProfile = doc.data();
+          } else {
+            // Check by email query
+            const q = await window.firestoreDb.collection("users").where("email", "==", email).limit(1).get();
+            if (!q.empty) {
+              userProfile = q.docs[0].data();
+            }
+          }
+        } catch (dbErr) {
+          console.warn("Firestore user profile fetch notice:", dbErr);
+        }
+      }
+
+      // If user profile not yet in Firestore, seed from defaults or fallback
+      if (!userProfile) {
+        const seed = SEED_ACCOUNTS[email];
+        if (seed) {
+          userProfile = { ...seed, id: fbUser.uid };
+        } else {
+          // Default profile based on role assumption
+          userProfile = {
+            id: fbUser.uid,
+            name: email.split("@")[0],
+            email: email,
+            role: "student",
+            department: "ECS",
+            student_class: "Third Year",
+            division: "Div A",
+            batch: "Batch 1",
+            assignments: []
+          };
+        }
+        syncUserProfileToFirestore(userProfile);
+      }
+
+      currentUser = userProfile;
+      localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+
+      showToast(`Welcome back, ${currentUser.name}!`, "success");
+      setupWebSocket();
+      showAppUI();
+      loadInitialData();
+      return;
+    }
+
+    // Server-backed environment (FastAPI on localhost)
     if (window.firebaseAuth) {
       try {
         await window.firebaseAuth.signInWithEmailAndPassword(email, password);
       } catch (fbErr) {
-        // If user doesn't exist in Firebase yet but exists in local DB, create user in Firebase
         if (fbErr.code === "auth/user-not-found" || fbErr.code === "auth/invalid-credential") {
           try {
             await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
-          } catch (e2) {
-            console.warn("Firebase Auth fallback notice:", e2.message);
-          }
-        } else {
-          console.warn("Firebase Auth notice:", fbErr.message);
+          } catch (e2) {}
         }
       }
     }
 
-    // 2. Server API Session
     const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -452,18 +643,6 @@ async function handleLogin(e) {
     currentUser = data.user;
     localStorage.setItem("edmg_user", JSON.stringify(currentUser));
 
-    // If Firebase Auth wasn't authenticated yet, try to ensure user exists
-    if (window.firebaseAuth && !window.firebaseAuth.currentUser) {
-      try {
-        await window.firebaseAuth.signInWithEmailAndPassword(email, password);
-      } catch (fbSyncErr) {
-        try {
-          await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
-        } catch (e3) {}
-      }
-    }
-
-    // Save profile to Firestore
     syncUserProfileToFirestore(currentUser);
 
     showToast(`Welcome back, ${currentUser.name}!`, "success");
@@ -483,7 +662,7 @@ async function handleLogin(e) {
 async function handleStudentRegister(e) {
   e.preventDefault();
   const name = document.getElementById("stuRegName").value.trim();
-  const email = document.getElementById("stuRegEmail").value.trim();
+  const email = document.getElementById("stuRegEmail").value.trim().toLowerCase();
   const department = document.getElementById("stuRegDept").value;
   const student_class = document.getElementById("stuRegClass").value;
   const division = document.getElementById("stuRegDiv").value;
@@ -491,7 +670,48 @@ async function handleStudentRegister(e) {
   const password = document.getElementById("stuRegPassword").value;
 
   try {
-    // 1. Create user in Firebase Auth
+    if (IS_PURE_FIREBASE) {
+      if (!window.firebaseAuth) throw new Error("Firebase Auth is unavailable.");
+
+      let fbUser = null;
+      try {
+        const cred = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+        fbUser = cred.user;
+      } catch (fbErr) {
+        if (fbErr.code === "auth/email-already-in-use") {
+          const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+          fbUser = cred.user;
+        } else {
+          throw new Error(fbErr.message || "Registration failed");
+        }
+      }
+
+      authToken = await fbUser.getIdToken();
+      localStorage.setItem("edmg_token", authToken);
+
+      const userProfile = {
+        id: fbUser.uid,
+        name: name,
+        email: email,
+        role: "student",
+        department: department,
+        student_class: student_class,
+        division: division,
+        batch: batch,
+        assignments: []
+      };
+
+      currentUser = userProfile;
+      localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+      syncUserProfileToFirestore(currentUser);
+
+      showToast(`Registered as student for ${department} ${division} (${batch})`, "success");
+      setupWebSocket();
+      showAppUI();
+      loadInitialData();
+      return;
+    }
+
     if (window.firebaseAuth) {
       try {
         await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
@@ -502,7 +722,6 @@ async function handleStudentRegister(e) {
       }
     }
 
-    // 2. Register in application backend
     const res = await fetch(`${API_BASE}/api/auth/register-student`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -531,7 +750,7 @@ async function handleStudentRegister(e) {
 async function handleFacultyRegister(e) {
   e.preventDefault();
   const name = document.getElementById("facRegName").value.trim();
-  const email = document.getElementById("facRegEmail").value.trim();
+  const email = document.getElementById("facRegEmail").value.trim().toLowerCase();
   const password = document.getElementById("facRegPassword").value;
 
   const rows = document.querySelectorAll(".assignment-row");
@@ -558,7 +777,48 @@ async function handleFacultyRegister(e) {
   }
 
   try {
-    // 1. Create faculty in Firebase Auth
+    if (IS_PURE_FIREBASE) {
+      if (!window.firebaseAuth) throw new Error("Firebase Auth is unavailable.");
+
+      let fbUser = null;
+      try {
+        const cred = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+        fbUser = cred.user;
+      } catch (fbErr) {
+        if (fbErr.code === "auth/email-already-in-use") {
+          const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+          fbUser = cred.user;
+        } else {
+          throw new Error(fbErr.message || "Faculty registration failed");
+        }
+      }
+
+      authToken = await fbUser.getIdToken();
+      localStorage.setItem("edmg_token", authToken);
+
+      const userProfile = {
+        id: fbUser.uid,
+        name: name,
+        email: email,
+        role: "faculty",
+        department: assignments[0].department,
+        student_class: assignments[0].student_class,
+        division: assignments[0].division,
+        batch: assignments[0].batches[0] || "Batch 1",
+        assignments: assignments
+      };
+
+      currentUser = userProfile;
+      localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+      syncUserProfileToFirestore(currentUser);
+
+      showToast(`Faculty registered with ${assignments.length} department allocations!`, "success");
+      setupWebSocket();
+      showAppUI();
+      loadInitialData();
+      return;
+    }
+
     if (window.firebaseAuth) {
       try {
         await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
@@ -569,7 +829,6 @@ async function handleFacultyRegister(e) {
       }
     }
 
-    // 2. Register in application backend
     const res = await fetch(`${API_BASE}/api/auth/register-faculty`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -594,6 +853,7 @@ async function handleFacultyRegister(e) {
     showToast(err.message, "error");
   }
 }
+
 
 // Sync user profile to Firestore
 function syncUserProfileToFirestore(user) {
@@ -759,6 +1019,50 @@ function logout() {
 // ----------------- STUDENT / LEADER FLOW -----------------
 async function loadMyGroup() {
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      // Find group where user is a member or creator
+      let groupDoc = null;
+      try {
+        const q1 = await window.firestoreDb.collection("groups").where("member_user_ids", "array-contains", currentUser.id).limit(1).get();
+        if (!q1.empty) {
+          groupDoc = q1.docs[0];
+        } else {
+          // Fallback: check created_by
+          const q2 = await window.firestoreDb.collection("groups").where("created_by", "==", currentUser.id).limit(1).get();
+          if (!q2.empty) groupDoc = q2.docs[0];
+        }
+      } catch (e) {
+        console.warn("Firestore find group notice:", e);
+      }
+
+      const noGroupState = document.getElementById("noGroupState");
+      const hasGroupState = document.getElementById("hasGroupState");
+
+      if (!groupDoc) {
+        currentMyGroup = null;
+        document.getElementById("studentGreetingName").textContent = currentUser.name;
+        document.getElementById("studentGreetingAlloc").textContent = `${currentUser.department} • ${currentUser.student_class} • ${currentUser.division} • ${currentUser.batch}`;
+        
+        if (document.getElementById("newGroupDept")) {
+          document.getElementById("newGroupDept").value = currentUser.department;
+          document.getElementById("newGroupClass").value = currentUser.student_class;
+          document.getElementById("newGroupDiv").value = currentUser.division;
+          document.getElementById("newGroupBatch").value = currentUser.batch;
+        }
+        
+        noGroupState.style.display = "block";
+        hasGroupState.style.display = "none";
+      } else {
+        currentMyGroup = { id: groupDoc.id, ...groupDoc.data() };
+        currentMyGroup.is_leader = (currentMyGroup.created_by === currentUser.id);
+        noGroupState.style.display = "none";
+        hasGroupState.style.display = "block";
+        renderMyGroupDetails(currentMyGroup);
+        listenToMyGroupFirestore(currentMyGroup.id);
+      }
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/my-group`, {
       headers: authHeaders()
     });
@@ -1077,6 +1381,16 @@ async function handleSaveBudget() {
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
     }
 
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      currentMyGroup.budget_items = currentBudgetItems;
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update({
+        budget_items: currentBudgetItems,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("₹1,00,000 Budget allocation saved successfully!", "success");
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}/budget`, {
       method: "PUT",
       headers: authHeaders(),
@@ -1146,6 +1460,16 @@ async function handleSavePitch(e) {
   const ask_budget_milestone = document.getElementById("pitchAsk").value.trim();
   const pitch_deck_url = document.getElementById("pitchDeckUrl").value.trim();
 
+  const pitchData = {
+    hook_tagline,
+    problem_urgency,
+    solution_usp,
+    target_market_tam,
+    business_model_monetization,
+    ask_budget_milestone,
+    pitch_deck_url
+  };
+
   const btn = document.getElementById("savePitchBtn");
   try {
     if (btn) {
@@ -1153,18 +1477,20 @@ async function handleSavePitch(e) {
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
     }
 
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      currentMyGroup.pitch_strategy = pitchData;
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update({
+        pitch_strategy: pitchData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("Pitching strategy framework saved!", "success");
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}/pitch`, {
       method: "PUT",
       headers: authHeaders(),
-      body: JSON.stringify({
-        hook_tagline,
-        problem_urgency,
-        solution_usp,
-        target_market_tam,
-        business_model_monetization,
-        ask_budget_milestone,
-        pitch_deck_url
-      })
+      body: JSON.stringify(pitchData)
     });
 
     const data = await res.json();
@@ -1356,6 +1682,16 @@ async function handleSaveDigitalMarketing(e) {
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving Digital Lab...`;
     }
 
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      currentMyGroup.digital_marketing = payload;
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update({
+        digital_marketing: payload,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("Digital Promotion Lab (Points 5-10) saved successfully!", "success");
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}/digital-marketing`, {
       method: "PUT",
       headers: authHeaders(),
@@ -1470,6 +1806,16 @@ async function handleSaveEmployability(e) {
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
     }
 
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      currentMyGroup.employability_portfolio = payload;
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update({
+        employability_portfolio: payload,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("Analytics & Employability Portfolio (Points 11-12) saved!", "success");
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}/employability`, {
       method: "PUT",
       headers: authHeaders(),
@@ -1491,6 +1837,7 @@ async function handleSaveEmployability(e) {
     }
   }
 }
+
 
 function exportVentureDossier() {
   if (!currentMyGroup) return;
@@ -1660,6 +2007,15 @@ function renderStudentMarks(score) {
   `;
 }
 
+function generateRandomInviteCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 async function handleCreateGroup(e) {
   e.preventDefault();
   const name = document.getElementById("newGroupName").value.trim();
@@ -1670,7 +2026,65 @@ async function handleCreateGroup(e) {
   const rawMembers = document.getElementById("newMemberNames").value;
   const member_names = rawMembers.split(",").map(s => s.trim()).filter(Boolean);
 
+  if (!member_names.includes(currentUser.name)) {
+    member_names.unshift(currentUser.name);
+  }
+
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const invite_code = generateRandomInviteCode();
+      const groupId = "grp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+
+      const groupPayload = {
+        id: groupId,
+        name: name,
+        department: department,
+        student_class: student_class,
+        division: division,
+        batch: batch,
+        invite_code: invite_code,
+        created_by: currentUser.id,
+        creator_name: currentUser.name,
+        member_names: member_names,
+        member_user_ids: [currentUser.id],
+        step1_problem_statement: "",
+        step2_market_research: "",
+        step3_innovative_solution: "",
+        step4_feasibility_business_model: "",
+        step5_marketing_presentation: "",
+        step1_status: "pending",
+        step2_status: "pending",
+        step3_status: "pending",
+        step4_status: "pending",
+        step5_status: "pending",
+        step1_remarks: "",
+        step2_remarks: "",
+        step3_remarks: "",
+        step4_remarks: "",
+        step5_remarks: "",
+        budget_items: [],
+        pitch_strategy: {},
+        digital_marketing: {},
+        employability_portfolio: {},
+        marketing_metrics: {
+          total_unique_views: 0,
+          total_raw_clicks: 0,
+          whatsapp_unique: 0,
+          telegram_unique: 0,
+          linkedin_unique: 0,
+          engagement_rate: 0
+        },
+        score: null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      await window.firestoreDb.collection("groups").doc(groupId).set(groupPayload);
+      showToast("Group registered! You are now Group Leader.", "success");
+      await loadMyGroup();
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups`, {
       method: "POST",
       headers: authHeaders(),
@@ -1690,9 +2104,34 @@ async function handleCreateGroup(e) {
 
 async function handleJoinGroup(e) {
   e.preventDefault();
-  const invite_code = document.getElementById("joinInviteCode").value.trim();
+  const invite_code = document.getElementById("joinInviteCode").value.trim().toUpperCase();
 
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const q = await window.firestoreDb.collection("groups").where("invite_code", "==", invite_code).limit(1).get();
+      if (q.empty) {
+        throw new Error("Invalid invite code. No matching group found.");
+      }
+      const targetDoc = q.docs[0];
+      const targetData = targetDoc.data();
+
+      const memberIds = targetData.member_user_ids || [];
+      const memberNames = targetData.member_names || [];
+
+      if (!memberIds.includes(currentUser.id)) memberIds.push(currentUser.id);
+      if (!memberNames.includes(currentUser.name)) memberNames.push(currentUser.name);
+
+      await window.firestoreDb.collection("groups").doc(targetDoc.id).update({
+        member_user_ids: memberIds,
+        member_names: memberNames,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showToast("Successfully joined team project!", "success");
+      await loadMyGroup();
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/join`, {
       method: "POST",
       headers: authHeaders(),
@@ -1727,6 +2166,40 @@ async function handleSaveSubmission(e) {
     saveBtn.disabled = true;
     saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
 
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const updateData = {
+        member_names: member_names,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (currentMyGroup.step1_status !== "approved") {
+        updateData.step1_problem_statement = step1_problem_statement;
+        currentMyGroup.step1_problem_statement = step1_problem_statement;
+      }
+      if (currentMyGroup.step2_status !== "approved") {
+        updateData.step2_market_research = step2_market_research;
+        currentMyGroup.step2_market_research = step2_market_research;
+      }
+      if (currentMyGroup.step3_status !== "approved") {
+        updateData.step3_innovative_solution = step3_innovative_solution;
+        currentMyGroup.step3_innovative_solution = step3_innovative_solution;
+      }
+      if (currentMyGroup.step4_status !== "approved") {
+        updateData.step4_feasibility_business_model = step4_feasibility_business_model;
+        currentMyGroup.step4_feasibility_business_model = step4_feasibility_business_model;
+      }
+      if (currentMyGroup.step5_status !== "approved") {
+        updateData.step5_marketing_presentation = step5_marketing_presentation;
+        currentMyGroup.step5_marketing_presentation = step5_marketing_presentation;
+      }
+      currentMyGroup.member_names = member_names;
+
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update(updateData);
+      renderMyGroupDetails(currentMyGroup);
+      showToast("All 5 project steps saved successfully!", "success");
+      document.getElementById("lastSavedTime").textContent = `Last saved at ${new Date().toLocaleTimeString()}`;
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}`, {
       method: "PUT",
       headers: authHeaders(),
@@ -1757,6 +2230,7 @@ async function handleSaveSubmission(e) {
   }
 }
 
+
 function copyInviteCode() {
   const code = document.getElementById("activeGroupInviteCode").textContent;
   navigator.clipboard.writeText(code).then(() => {
@@ -1774,6 +2248,36 @@ async function loadAdminGroups(showToastNotice = false) {
   const cls = document.getElementById("filterClass").value;
   const div = document.getElementById("filterDiv").value;
   const batch = document.getElementById("filterBatch").value;
+
+  if (IS_PURE_FIREBASE && window.firestoreDb) {
+    try {
+      let query = window.firestoreDb.collection("groups");
+      if (dept !== "All") query = query.where("department", "==", dept);
+      if (cls !== "All") query = query.where("student_class", "==", cls);
+      if (div !== "All") query = query.where("division", "==", div);
+      if (batch !== "All") query = query.where("batch", "==", batch);
+
+      const snapshot = await query.get();
+      const groups = [];
+      snapshot.forEach(doc => {
+        groups.push({ id: doc.id, ...doc.data() });
+      });
+
+      allAdminGroups = groups;
+      renderAdminGroups(allAdminGroups);
+
+      if (!adminGroupsFirestoreUnsub) {
+        listenToFacultyGroupsFirestore();
+      }
+
+      if (showToastNotice) {
+        showToast("Groups reloaded from Firestore.", "info");
+      }
+    } catch (err) {
+      showToast("Error loading groups: " + err.message, "error");
+    }
+    return;
+  }
 
   let url = `${API_BASE}/api/admin/groups`;
   const params = [];
@@ -1815,6 +2319,7 @@ async function loadAdminGroups(showToastNotice = false) {
     showToast(err.message, "error");
   }
 }
+
 
 function renderAdminGroups(groups) {
   const container = document.getElementById("adminGroupsList");
@@ -2153,6 +2658,18 @@ async function handleVerifyStep(groupId, stepNum, statusVal) {
   const remarks = remarksInput ? remarksInput.value.trim() : "";
 
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const updateData = {
+        [`step${stepNum}_status`]: statusVal,
+        [`step${stepNum}_remarks`]: remarks,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await window.firestoreDb.collection("groups").doc(groupId).update(updateData);
+      showToast(`Step ${stepNum} set to '${statusVal.toUpperCase()}'!`, "success");
+      await loadAdminGroups(false);
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}/verify-step`, {
       method: "POST",
       headers: authHeaders(),
@@ -2192,12 +2709,34 @@ async function handleSaveScore(e, groupId) {
   const solution = parseInt(document.getElementById(`sol-${groupId}`).value) || 0;
   const presentation = parseInt(document.getElementById(`pres-${groupId}`).value) || 0;
   const remarks = document.getElementById(`remarks-${groupId}`).value.trim();
+  const total = innovation + feasibility + solution + presentation;
 
   const submitBtn = document.getElementById(`btn-score-${groupId}`);
 
   try {
     submitBtn.disabled = true;
     submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const scoreObj = {
+        group_id: groupId,
+        innovation,
+        feasibility,
+        solution,
+        presentation,
+        total,
+        remarks,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await window.firestoreDb.collection("scores").doc(groupId).set(scoreObj, { merge: true });
+      await window.firestoreDb.collection("groups").doc(groupId).update({
+        score: scoreObj,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast(`Score updated! Total: ${total}/50`, "success");
+      await loadAdminGroups(false);
+      return;
+    }
 
     const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}/score`, {
       method: "POST",
@@ -2265,6 +2804,15 @@ async function executeDeleteGroup() {
   if (!deleteTargetGroupId) return;
 
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      await window.firestoreDb.collection("groups").doc(deleteTargetGroupId).delete();
+      await window.firestoreDb.collection("scores").doc(deleteTargetGroupId).delete().catch(() => {});
+      showToast("Group and all associated milestone records deleted.", "success");
+      closeDeleteModal();
+      await loadAdminGroups();
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/admin/groups/${deleteTargetGroupId}`, {
       method: "DELETE",
       headers: authHeaders()
@@ -2291,6 +2839,70 @@ async function loadLeaderboard(showToastNotice = false) {
   const dept = document.getElementById("lbFilterDept") ? document.getElementById("lbFilterDept").value : "All";
   const div = document.getElementById("lbFilterDiv") ? document.getElementById("lbFilterDiv").value : "All";
   const batch = document.getElementById("lbFilterBatch") ? document.getElementById("lbFilterBatch").value : "All";
+
+  if (IS_PURE_FIREBASE && window.firestoreDb) {
+    try {
+      let query = window.firestoreDb.collection("groups");
+      if (dept !== "All") query = query.where("department", "==", dept);
+      if (div !== "All") query = query.where("division", "==", div);
+      if (batch !== "All") query = query.where("batch", "==", batch);
+
+      const snapshot = await query.get();
+      const leaderboard = [];
+
+      snapshot.forEach(doc => {
+        const g = doc.data();
+        const s = g.score || null;
+        const innov = s ? (s.innovation || 0) : 0;
+        const feas = s ? (s.feasibility || 0) : 0;
+        const sol = s ? (s.solution || 0) : 0;
+        const pres = s ? (s.presentation || 0) : 0;
+        const total = s ? (s.total || (innov + feas + sol + pres)) : 0;
+
+        leaderboard.push({
+          id: doc.id,
+          name: g.name,
+          department: g.department,
+          student_class: g.student_class,
+          division: g.division,
+          batch: g.batch,
+          members: g.member_names || [],
+          is_marked: (s !== null && s !== undefined),
+          innovation: innov,
+          feasibility: feas,
+          solution_score: sol,
+          presentation: pres,
+          total: total,
+          remarks: s ? s.remarks || "" : "",
+          step1_problem_statement: g.step1_problem_statement || "",
+          step2_market_research: g.step2_market_research || "",
+          step3_innovative_solution: g.step3_innovative_solution || "",
+          step4_feasibility_business_model: g.step4_feasibility_business_model || "",
+          step5_marketing_presentation: g.step5_marketing_presentation || ""
+        });
+      });
+
+      leaderboard.sort((a, b) => {
+        if (a.is_marked !== b.is_marked) return b.is_marked ? 1 : -1;
+        if (a.total !== b.total) return b.total - a.total;
+        if (a.innovation !== b.innovation) return b.innovation - a.innovation;
+        return b.solution_score - a.solution_score;
+      });
+
+      const ranked = leaderboard.map((item, idx) => ({ ...item, rank: idx + 1 }));
+      const topProject = (ranked.length > 0 && ranked[0].is_marked) ? ranked[0] : null;
+
+      renderLeaderboard(ranked, topProject);
+
+      if (showToastNotice) {
+        showToast("Leaderboard synced from Firestore.", "info");
+      }
+    } catch (err) {
+      showToast("Leaderboard error: " + err.message, "error");
+    }
+    return;
+  }
+
 
   let url = `${API_BASE}/api/leaderboard`;
   const params = [];
@@ -2420,6 +3032,20 @@ function renderLeaderboard(list, bestProject) {
 async function loadAdminUsers() {
   if (currentUser.role !== "faculty") return;
 
+  if (IS_PURE_FIREBASE && window.firestoreDb) {
+    try {
+      const snapshot = await window.firestoreDb.collection("users").get();
+      const users = [];
+      snapshot.forEach(doc => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      renderAdminUsers(users);
+    } catch (err) {
+      showToast("Error loading users: " + err.message, "error");
+    }
+    return;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/api/admin/users`, {
       headers: authHeaders()
@@ -2472,6 +3098,16 @@ function renderAdminUsers(users) {
 
 async function changeUserRole(targetUserId, newRole) {
   try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      await window.firestoreDb.collection("users").doc(targetUserId).update({
+        role: newRole,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast(`User role updated to ${newRole}`, "success");
+      await loadAdminUsers();
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/admin/promote`, {
       method: "POST",
       headers: authHeaders(),
@@ -2501,8 +3137,10 @@ function escapeHtml(str) {
 document.addEventListener("DOMContentLoaded", () => {
   checkAuth();
 
-  // Background sync fallback: check for any faculty updates every 8 seconds
+  // Background sync fallback: check for any faculty updates every 8 seconds (only needed when running FastAPI without WebSocket)
   setInterval(() => {
+    if (IS_PURE_FIREBASE) return; // In pure Firebase mode, Firestore onSnapshot provides 100% real-time instant sync for free!
+
     if (authToken && currentUser) {
       if (currentUser.role === "student" && currentMyGroup) {
         // Fetch latest group status quietly
@@ -2539,4 +3177,5 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }, 8000);
 });
+
 
