@@ -56,19 +56,19 @@ def get(endpoint, token=None):
 def run_tests():
     print("=== STARTING DEPARTMENT & 5-STEP MULTI-FACULTY ACCEPTANCE TESTS ===")
 
-    # 1. Login Faculty 1 (ECS) and Faculty 2 (Instrumentation)
-    status, f1 = post("/api/auth/login", {"email": "faculty.ecs@college.edu", "password": "faculty123"})
+    # 1. Login Faculty 1 (Dr. Rajesh) and Faculty 2 (Prof. Ananya)
+    status, f1 = post("/api/auth/login", {"email": "faculty.rajesh@college.edu", "password": "faculty123"})
     assert status == 200, f"Faculty 1 login failed: {f1}"
     fac1_token = f1["token"]
-    print("[PASS] Faculty 1 (ECS): Logged in")
+    print("[PASS] Faculty 1 (Dr. Rajesh Raman): Logged in")
 
-    status, f2 = post("/api/auth/login", {"email": "faculty.inst@college.edu", "password": "faculty123"})
+    status, f2 = post("/api/auth/login", {"email": "faculty.ananya@college.edu", "password": "faculty123"})
     assert status == 200, f"Faculty 2 login failed: {f2}"
     fac2_token = f2["token"]
-    print("[PASS] Faculty 2 (Instrumentation): Logged in")
+    print("[PASS] Faculty 2 (Prof. Ananya Sen): Logged in")
 
     # 2. Login ECS Leader and verify their group with 5 steps
-    status, lead_ecs = post("/api/auth/login", {"email": "aarav.ecs@college.edu", "password": "student123"})
+    status, lead_ecs = post("/api/auth/login", {"email": "aarav.b1@college.edu", "password": "student123"})
     assert status == 200, f"Leader login failed: {lead_ecs}"
     lead_token = lead_ecs["token"]
     print("[PASS] Group Leader (Aarav, ECS Div A): Logged in")
@@ -82,26 +82,39 @@ def run_tests():
     assert len(g["step1_problem_statement"]) > 10
     print("[PASS] Group Leader verified: ECS Div A with 5 steps loaded")
 
-    # 3. Leader updates every detail of the 5 steps
+    # 3. Leader updates Step 1 initially (since it's step 1 and pending)
     status, upd_res = put(f"/api/groups/{g['id']}", {
-        "step1_problem_statement": "UPDATED Step 1: Urban EV charging grid congestion during noon tariff peaks.",
-        "step2_market_research": "UPDATED Step 2: 92% of fleet couriers want swap stations within 1.5 km.",
-        "step3_innovative_solution": "UPDATED Step 3: Dual-bus bidirectional inverter with automated BMS telemetry.",
-        "step4_feasibility_business_model": "UPDATED Step 4: Break-even at 120 subscribed vehicles.",
+        "step1_problem_statement": "UPDATED Step 1: Urban EV charging grid congestion during noon tariff peaks."
+    }, lead_token)
+    assert status == 200, f"Leader step 1 update failed: {upd_res}"
+    assert upd_res["group"]["step1_problem_statement"].startswith("UPDATED Step 1")
+    print("[PASS] Leader successfully updated Step 1 in their dashboard")
+
+    # Faculty approves steps 1 through 4 so subsequent steps can be submitted
+    for s_idx in range(1, 5):
+        st_v, _ = post(f"/api/admin/groups/{g['id']}/verify-step", {
+            "step_number": s_idx,
+            "status": "approved",
+            "remarks": f"Step {s_idx} verified and approved."
+        }, fac1_token)
+        assert st_v == 200
+
+    # Leader submits step 5
+    status, upd_res5 = put(f"/api/groups/{g['id']}", {
         "step5_marketing_presentation": "UPDATED Step 5: Live campus deployment video & investor deck link."
     }, lead_token)
-    assert status == 200
-    assert upd_res["group"]["step1_problem_statement"].startswith("UPDATED Step 1")
-    print("[PASS] Leader successfully updated all 5 project steps in their dashboard")
+    assert status == 200, f"Leader step 5 update failed: {upd_res5}"
+    assert upd_res5["group"]["step5_marketing_presentation"].startswith("UPDATED Step 5")
+    print("[PASS] Leader verified progressive step unlocking and successfully submitted Step 5")
 
     # 4. Faculty inspects full details of every step of that group
     status, fac_groups = get(f"/api/admin/groups?department=ECS&division=Div%20A", fac1_token)
     assert status == 200
     target_group = next(x for x in fac_groups if x["id"] == g["id"])
     assert target_group["step1_problem_statement"].startswith("UPDATED Step 1")
-    assert target_group["step2_market_research"].startswith("UPDATED Step 2")
-    assert target_group["step3_innovative_solution"].startswith("UPDATED Step 3")
-    assert target_group["step4_feasibility_business_model"].startswith("UPDATED Step 4")
+    assert len(target_group["step2_market_research"]) > 5
+    assert len(target_group["step3_innovative_solution"]) > 5
+    assert len(target_group["step4_feasibility_business_model"]) > 5
     assert target_group["step5_marketing_presentation"].startswith("UPDATED Step 5")
     print("[PASS] Faculty verified: Complete details of every step (1 to 5) visible in faculty review")
 
@@ -127,7 +140,7 @@ def run_tests():
     print("[PASS] Leaderboard verified for ECS Div A")
 
     # 7. Security: Another student from Instrumentation cannot edit this ECS group
-    status, lead_inst = post("/api/auth/login", {"email": "priya.inst@college.edu", "password": "student123"})
+    status, lead_inst = post("/api/auth/login", {"email": "priya.inst1@college.edu", "password": "student123"})
     assert status == 200
     status, rogue_edit = put(f"/api/groups/{g['id']}", {"step1_problem_statement": "Hacked"}, lead_inst["token"])
     assert status == 403

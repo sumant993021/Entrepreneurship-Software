@@ -126,6 +126,13 @@ class Score(Base):
     __tablename__ = "scores"
     id = Column(String, primary_key=True, index=True)
     group_id = Column(String, ForeignKey("groups.id"), unique=True, nullable=False)
+    # Per-step marking rubric (0-10 each, total 0-50)
+    step1_score = Column(Integer, default=0, nullable=False)   # Step 1: 0-10
+    step2_score = Column(Integer, default=0, nullable=False)   # Step 2: 0-10
+    step3_score = Column(Integer, default=0, nullable=False)   # Step 3: 0-10
+    step4_score = Column(Integer, default=0, nullable=False)   # Step 4: 0-10
+    step5_score = Column(Integer, default=0, nullable=False)   # Step 5: 0-10
+    # Backward compatibility fields
     innovation = Column(Integer, default=0, nullable=False)    # 0-15
     feasibility = Column(Integer, default=0, nullable=False)   # 0-10
     solution = Column(Integer, default=0, nullable=False)      # 0-15
@@ -145,6 +152,15 @@ class MarketingVisit(Base):
     ip_address = Column(String, default="")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+class CustomerReview(Base):
+    __tablename__ = "customer_reviews"
+    id = Column(String, primary_key=True, index=True)
+    group_id = Column(String, ForeignKey("groups.id"), nullable=False, index=True)
+    customer_name = Column(String, nullable=False)
+    rating = Column(Integer, default=5, nullable=False) # 1-5 stars
+    comment = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 class UserSession(Base):
     __tablename__ = "user_sessions"
     token = Column(String, primary_key=True, index=True)
@@ -156,7 +172,6 @@ Base.metadata.create_all(bind=engine)
 # Helper to automatically ensure new columns exist in existing SQLite databases
 def run_sqlite_migrations():
     with engine.connect() as conn:
-        from sqlalchemy import text
         cursor = conn.connection.cursor()
         cursor.execute("PRAGMA table_info(groups)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -175,7 +190,8 @@ def run_sqlite_migrations():
             ("budget_items_json", "TEXT DEFAULT '[]'"),
             ("pitch_strategy_json", "TEXT DEFAULT '{}'"),
             ("digital_marketing_json", "TEXT DEFAULT '{}'"),
-            ("employability_portfolio_json", "TEXT DEFAULT '{}'")
+            ("employability_portfolio_json", "TEXT DEFAULT '{}'"),
+            ("customer_reviews_json", "TEXT DEFAULT '[]'")
         ]
         for col_name, col_type in new_cols:
             if col_name not in columns:
@@ -183,6 +199,24 @@ def run_sqlite_migrations():
                     cursor.execute(f"ALTER TABLE groups ADD COLUMN {col_name} {col_type}")
                 except Exception as e:
                     print(f"Migration note for {col_name}: {e}")
+        
+        # Check scores table columns
+        cursor.execute("PRAGMA table_info(scores)")
+        score_columns = [row[1] for row in cursor.fetchall()]
+        new_score_cols = [
+            ("step1_score", "INTEGER DEFAULT 0"),
+            ("step2_score", "INTEGER DEFAULT 0"),
+            ("step3_score", "INTEGER DEFAULT 0"),
+            ("step4_score", "INTEGER DEFAULT 0"),
+            ("step5_score", "INTEGER DEFAULT 0")
+        ]
+        for col_name, col_type in new_score_cols:
+            if col_name not in score_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE scores ADD COLUMN {col_name} {col_type}")
+                except Exception as e:
+                    print(f"Migration note for score {col_name}: {e}")
+
         conn.connection.commit()
 
 run_sqlite_migrations()
@@ -439,11 +473,21 @@ class UpdateEmployabilityRequest(BaseModel):
     executive_summary: Optional[str] = ""
 
 class ScoreRequest(BaseModel):
-    innovation: int
-    feasibility: int
-    solution: int
-    presentation: int
+    step1_score: Optional[int] = None
+    step2_score: Optional[int] = None
+    step3_score: Optional[int] = None
+    step4_score: Optional[int] = None
+    step5_score: Optional[int] = None
+    innovation: Optional[int] = None
+    feasibility: Optional[int] = None
+    solution: Optional[int] = None
+    presentation: Optional[int] = None
     remarks: Optional[str] = ""
+
+class CustomerReviewRequest(BaseModel):
+    customer_name: str
+    rating: int # 1 to 5
+    comment: Optional[str] = ""
 
 # ----------------- Authentication Dependencies -----------------
 from fastapi import Header
@@ -652,7 +696,17 @@ def format_group_response(group: Group, score: Optional[Score], current_user: Us
 
     score_data = None
     if score:
+        s1 = getattr(score, "step1_score", 0) or 0
+        s2 = getattr(score, "step2_score", 0) or 0
+        s3 = getattr(score, "step3_score", 0) or 0
+        s4 = getattr(score, "step4_score", 0) or 0
+        s5 = getattr(score, "step5_score", 0) or 0
         score_data = {
+            "step1_score": s1,
+            "step2_score": s2,
+            "step3_score": s3,
+            "step4_score": s4,
+            "step5_score": s5,
             "innovation": score.innovation,
             "feasibility": score.feasibility,
             "solution": score.solution,
@@ -690,6 +744,29 @@ def format_group_response(group: Group, score: Optional[Score], current_user: Us
         except Exception:
             employability_portfolio = {}
 
+    # Customer Reviews & Ratings
+    reviews_list = []
+    if getattr(group, "customer_reviews_json", None):
+        try:
+            reviews_list = json.loads(group.customer_reviews_json)
+        except Exception:
+            reviews_list = []
+    
+    # Also load from CustomerReview table if present
+    db_reviews = db.query(CustomerReview).filter(CustomerReview.group_id == group.id).order_by(CustomerReview.created_at.desc()).all()
+    for rev in db_reviews:
+        if not any(r.get("id") == rev.id for r in reviews_list):
+            reviews_list.append({
+                "id": rev.id,
+                "customer_name": rev.customer_name,
+                "rating": rev.rating,
+                "comment": rev.comment,
+                "created_at": rev.created_at.isoformat() if rev.created_at else None
+            })
+    
+    total_rating_sum = sum(r.get("rating", 5) for r in reviews_list)
+    avg_rating = round(total_rating_sum / max(1, len(reviews_list)), 1) if reviews_list else 5.0
+
     # Calculate Real-Time Marketing Performance (Deduplicated Unique Visitors & Channels)
     visits = db.query(MarketingVisit).filter(MarketingVisit.group_id == group.id).all()
     unique_visitors_set = set()
@@ -712,7 +789,9 @@ def format_group_response(group: Group, score: Optional[Score], current_user: Us
         "linkedin_unique": len(channel_unique_counts["linkedin"]),
         "direct_unique": len(channel_unique_counts["direct"]),
         "other_unique": len(channel_unique_counts["other"]),
-        "engagement_rate": round((len(unique_visitors_set) / max(1, total_raw_clicks)) * 100, 1)
+        "engagement_rate": round((len(unique_visitors_set) / max(1, total_raw_clicks)) * 100, 1),
+        "total_reviews": len(reviews_list),
+        "average_rating": avg_rating
     }
 
     return {
@@ -743,6 +822,13 @@ def format_group_response(group: Group, score: Optional[Score], current_user: Us
         "step4_status": group.step4_status or "pending",
         "step5_status": group.step5_status or "pending",
 
+        # Step-by-step custom marks (0-10 each)
+        "step1_score": score_data.get("step1_score", 0) if score_data else 0,
+        "step2_score": score_data.get("step2_score", 0) if score_data else 0,
+        "step3_score": score_data.get("step3_score", 0) if score_data else 0,
+        "step4_score": score_data.get("step4_score", 0) if score_data else 0,
+        "step5_score": score_data.get("step5_score", 0) if score_data else 0,
+
         "step1_remarks": group.step1_remarks or "",
         "step2_remarks": group.step2_remarks or "",
         "step3_remarks": group.step3_remarks or "",
@@ -759,6 +845,8 @@ def format_group_response(group: Group, score: Optional[Score], current_user: Us
 
         # Marketing Analytics & Deduplicated Tracking
         "marketing_metrics": marketing_metrics,
+        "customer_reviews": reviews_list,
+        "average_rating": avg_rating,
 
         "created_at": group.created_at.isoformat() if group.created_at else None,
         "score": score_data
@@ -786,15 +874,24 @@ def get_my_group(user: User = Depends(get_current_user), db: Session = Depends(g
 
 @app.post("/api/groups")
 def create_group(req: CreateGroupRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    names = [n.strip() for n in req.member_names if n.strip()]
+    if user.name not in names:
+        names.insert(0, user.name)
+
     groups = db.query(Group).all()
     for g in groups:
         members = json.loads(g.member_user_ids_json or "[]")
         if user.id in members:
-            raise HTTPException(status_code=400, detail="You are already enrolled in a group.")
-
-    names = [n.strip() for n in req.member_names if n.strip()]
-    if user.name not in names:
-        names.insert(0, user.name)
+            raise HTTPException(status_code=400, detail="You are already in a group.")
+        
+        # Also check if user's name or any provided member name is already in an existing group
+        existing_names = json.loads(g.member_names_json or "[]")
+        for m in names:
+            if m.lower() in [en.lower() for en in existing_names]:
+                if m.lower() == user.name.lower():
+                    raise HTTPException(status_code=400, detail="You are already in a group.")
+                else:
+                    raise HTTPException(status_code=400, detail=f"Member '{m}' is already registered in another group ({g.name}).")
 
     batch_val = "—" if req.department == "ECS" else req.batch
 
@@ -1172,6 +1269,98 @@ def show_public_project_page(group_identifier: str, db: Session = Depends(get_db
 
         {f'<div class="card"><h4><i class="fa-solid fa-link"></i> Live Prototype / Demo</h4><p><a href="{mkt.get("landing_page_url")}" target="_blank" style="color: #38bdf8; text-decoration: underline;">Open Project Demo Website</a></p></div>' if mkt.get('landing_page_url') else ''}
 
+        <!-- Customer Reviews & Rating Module -->
+        <div class="card" id="reviewsCard" style="border-color: #f59e0b;">
+          <h4 style="color: #fbbf24;"><i class="fa-solid fa-star"></i> Customer Reviews &amp; Ratings</h4>
+          <p style="margin-bottom: 1rem; color: #94a3b8;">Have you tested or interacted with our venture? Leave your authentic feedback and product rating.</p>
+          
+          <form id="publicReviewForm" onsubmit="submitReview(event)" style="display: flex; flex-direction: column; gap: 0.75rem; background: #1e293b; padding: 1rem; border-radius: 8px;">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+              <input type="text" id="custName" required placeholder="Your Name / Client Organization" style="flex: 2; min-width: 180px; padding: 0.6rem; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white;">
+              <select id="custRating" style="flex: 1; min-width: 120px; padding: 0.6rem; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fbbf24; font-weight: bold;">
+                <option value="5">★★★★★ (5 Stars)</option>
+                <option value="4">★★★★☆ (4 Stars)</option>
+                <option value="3">★★★☆☆ (3 Stars)</option>
+                <option value="2">★★☆☆☆ (2 Stars)</option>
+                <option value="1">★☆☆☆☆ (1 Star)</option>
+              </select>
+            </div>
+            <textarea id="custComment" required rows="2" placeholder="Write your review, testimonial, or product impressions..." style="width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; resize: vertical;"></textarea>
+            <button type="submit" id="btnSubmitRev" style="align-self: flex-start; padding: 0.6rem 1.25rem; background: #f59e0b; color: #0f172a; font-weight: bold; border: none; border-radius: 6px; cursor: pointer;">
+              <i class="fa-solid fa-paper-plane"></i> Submit Customer Review
+            </button>
+            <div id="reviewMsg" style="font-size: 0.85rem; display: none;"></div>
+          </form>
+
+          <div id="reviewsList" style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            <!-- Dynamically populated or rendered -->
+          </div>
+        </div>
+
+        <script>
+          const GROUP_ID = "{group.id}";
+          const existingReviews = {json.dumps(json.loads(group.customer_reviews_json or "[]"))};
+          
+          function renderReviews(revs) {{
+            const list = document.getElementById("reviewsList");
+            if (!revs || revs.length === 0) {{
+              list.innerHTML = '<div style="font-style: italic; color: #64748b; font-size: 0.9rem;">No reviews yet. Be the first customer to leave feedback!</div>';
+              return;
+            }}
+            list.innerHTML = revs.map(r => {{
+              const stars = "★".repeat(r.rating || 5) + "☆".repeat(5 - (r.rating || 5));
+              return `
+                <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <strong style="color: #f8fafc; font-size: 0.95rem;">${{r.customer_name}}</strong>
+                    <span style="color: #fbbf24; font-size: 0.9rem;">${{stars}}</span>
+                  </div>
+                  <p style="color: #cbd5e1; font-size: 0.88rem; margin: 0;">${{r.comment || ''}}</p>
+                </div>
+              `;
+            }}).join('');
+          }}
+
+          renderReviews(existingReviews);
+
+          async function submitReview(e) {{
+            e.preventDefault();
+            const btn = document.getElementById("btnSubmitRev");
+            const msg = document.getElementById("reviewMsg");
+            const name = document.getElementById("custName").value.trim();
+            const rating = parseInt(document.getElementById("custRating").value);
+            const comment = document.getElementById("custComment").value.trim();
+
+            btn.disabled = true;
+            btn.textContent = "Submitting...";
+
+            try {{
+              const res = await fetch("/api/groups/" + GROUP_ID + "/reviews", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ customer_name: name, rating, comment }})
+              }});
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.detail || "Submission failed");
+              
+              msg.style.display = "block";
+              msg.style.color = "#10b981";
+              msg.innerHTML = '<i class="fa-solid fa-circle-check"></i> Thank you! Your review has been recorded.';
+              
+              document.getElementById("publicReviewForm").reset();
+              existingReviews.unshift(data.review);
+              renderReviews(existingReviews);
+            }} catch (err) {{
+              msg.style.display = "block";
+              msg.style.color = "#ef4444";
+              msg.textContent = err.message;
+            }} finally {{
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Customer Review';
+            }}
+          }}
+        </script>
+
         <div style="text-align: center; margin-top: 2rem;">
           <a href="/?join={group.invite_code}" class="cta-btn">
             <i class="fa-solid fa-graduation-cap"></i> E&amp;DM Academic Project Showcase
@@ -1277,17 +1466,45 @@ async def score_group(group_id: str, req: ScoreRequest, admin: User = Depends(re
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    c_innov = max(0, min(15, req.innovation))
-    c_feas = max(0, min(10, req.feasibility))
-    c_sol = max(0, min(15, req.solution))
-    c_pres = max(0, min(10, req.presentation))
-    total = c_innov + c_feas + c_sol + c_pres
+    # If per-step scores are provided, use 0-10 for each of the 5 steps
+    if req.step1_score is not None or req.step2_score is not None or req.step3_score is not None or req.step4_score is not None or req.step5_score is not None:
+        s1 = max(0, min(10, req.step1_score or 0))
+        s2 = max(0, min(10, req.step2_score or 0))
+        s3 = max(0, min(10, req.step3_score or 0))
+        s4 = max(0, min(10, req.step4_score or 0))
+        s5 = max(0, min(10, req.step5_score or 0))
+        total = s1 + s2 + s3 + s4 + s5
+        # Map proportionally to legacy 4 fields for backwards compatibility
+        c_innov = min(15, round(s1 * 1.5))
+        c_feas = min(10, s2)
+        c_sol = min(15, round(s3 * 1.5))
+        c_pres = min(10, s4 + s5 - (c_innov + c_feas + c_sol - total))
+        if c_pres < 0: c_pres = 0
+        if c_pres > 10: c_pres = 10
+    else:
+        # Legacy 4-criteria format
+        c_innov = max(0, min(15, req.innovation or 0))
+        c_feas = max(0, min(10, req.feasibility or 0))
+        c_sol = max(0, min(15, req.solution or 0))
+        c_pres = max(0, min(10, req.presentation or 0))
+        total = c_innov + c_feas + c_sol + c_pres
+        s1 = min(10, round(c_innov * 10 / 15))
+        s2 = min(10, c_feas)
+        s3 = min(10, round(c_sol * 10 / 15))
+        s4 = min(10, round(c_pres / 2))
+        s5 = min(10, total - (s1 + s2 + s3 + s4))
+        if s5 < 0: s5 = 0
 
     score = db.query(Score).filter(Score.group_id == group_id).first()
     if not score:
         score = Score(
             id=str(uuid.uuid4()),
             group_id=group_id,
+            step1_score=s1,
+            step2_score=s2,
+            step3_score=s3,
+            step4_score=s4,
+            step5_score=s5,
             innovation=c_innov,
             feasibility=c_feas,
             solution=c_sol,
@@ -1299,6 +1516,11 @@ async def score_group(group_id: str, req: ScoreRequest, admin: User = Depends(re
         )
         db.add(score)
     else:
+        score.step1_score = s1
+        score.step2_score = s2
+        score.step3_score = s3
+        score.step4_score = s4
+        score.step5_score = s5
         score.innovation = c_innov
         score.feasibility = c_feas
         score.solution = c_sol
@@ -1321,6 +1543,11 @@ async def score_group(group_id: str, req: ScoreRequest, admin: User = Depends(re
         "batch": group.batch,
         "total": total,
         "score": {
+            "step1_score": s1,
+            "step2_score": s2,
+            "step3_score": s3,
+            "step4_score": s4,
+            "step5_score": s5,
             "innovation": c_innov,
             "feasibility": c_feas,
             "solution": c_sol,
@@ -1334,6 +1561,11 @@ async def score_group(group_id: str, req: ScoreRequest, admin: User = Depends(re
     return {
         "message": "Group scored successfully",
         "score": {
+            "step1_score": s1,
+            "step2_score": s2,
+            "step3_score": s3,
+            "step4_score": s4,
+            "step5_score": s5,
             "innovation": score.innovation,
             "feasibility": score.feasibility,
             "solution": score.solution,
@@ -1342,6 +1574,59 @@ async def score_group(group_id: str, req: ScoreRequest, admin: User = Depends(re
             "remarks": score.remarks,
             "updated_at": score.updated_at.isoformat()
         }
+    }
+
+# ----------------- Customer Reviews & Ratings Endpoints -----------------
+@app.post("/api/groups/{group_id}/reviews")
+async def add_customer_review(group_id: str, req: CustomerReviewRequest, db: Session = Depends(get_db)):
+    group = db.query(Group).filter((Group.id == group_id) | (Group.invite_code == group_id)).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    cust_name = req.customer_name.strip() or "Verified Customer"
+    rating_val = max(1, min(5, int(req.rating or 5)))
+    comment_val = req.comment.strip() if req.comment else "Great innovative product!"
+
+    rev_id = f"rev_{int(datetime.now().timestamp()*1000)}"
+    new_rev = CustomerReview(
+        id=rev_id,
+        group_id=group.id,
+        customer_name=cust_name,
+        rating=rating_val,
+        comment=comment_val,
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(new_rev)
+
+    # Also sync into customer_reviews_json column
+    revs = []
+    if group.customer_reviews_json:
+        try: revs = json.loads(group.customer_reviews_json)
+        except Exception: revs = []
+    
+    rev_obj = {
+        "id": rev_id,
+        "customer_name": cust_name,
+        "rating": rating_val,
+        "comment": comment_val,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    revs.insert(0, rev_obj)
+    group.customer_reviews_json = json.dumps(revs)
+
+    db.commit()
+
+    await manager.broadcast({
+        "event": "CUSTOMER_REVIEW_ADDED",
+        "group_id": group.id,
+        "customer_name": cust_name,
+        "rating": rating_val,
+        "comment": comment_val
+    })
+
+    return {
+        "message": "Customer review submitted successfully",
+        "review": rev_obj
     }
 
 @app.delete("/api/admin/groups/{group_id}")

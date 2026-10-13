@@ -408,19 +408,34 @@ function switchRegRole(role) {
 // Department change handler for Student Registration form
 function handleStudentDeptChange() {
   const deptSelect = document.getElementById("stuRegDept");
+  const divGroup = document.getElementById("stuRegDivGroup");
+  const divSelect = document.getElementById("stuRegDiv");
   const batchGroup = document.getElementById("stuRegBatchGroup");
   const batchSelect = document.getElementById("stuRegBatch");
-  if (!deptSelect || !batchGroup || !batchSelect) return;
+  if (!deptSelect) return;
 
   if (deptSelect.value === "ECS") {
-    batchGroup.style.display = "none";
-    batchSelect.required = false;
-    batchSelect.value = "—";
+    // ECS: Divisions A & B only, No batches
+    if (divGroup) divGroup.style.display = "block";
+    if (divSelect) divSelect.required = true;
+    if (batchGroup) batchGroup.style.display = "none";
+    if (batchSelect) {
+      batchSelect.required = false;
+      batchSelect.value = "—";
+    }
   } else {
-    batchGroup.style.display = "block";
-    batchSelect.required = true;
-    if (batchSelect.value === "—" || !batchSelect.value) {
-      batchSelect.value = "Batch 1";
+    // Instrumentation: Batches B1 & B2 only, No divisions
+    if (divGroup) divGroup.style.display = "none";
+    if (divSelect) {
+      divSelect.required = false;
+      divSelect.value = "—";
+    }
+    if (batchGroup) batchGroup.style.display = "block";
+    if (batchSelect) {
+      batchSelect.required = true;
+      if (batchSelect.value === "—" || !batchSelect.value) {
+        batchSelect.value = "Batch 1";
+      }
     }
   }
 }
@@ -428,19 +443,34 @@ function handleStudentDeptChange() {
 // Department change handler for Create Group form
 function handleNewGroupDeptChange() {
   const deptSelect = document.getElementById("newGroupDept");
+  const divGroup = document.getElementById("newGroupDivGroup");
+  const divSelect = document.getElementById("newGroupDiv");
   const batchGroup = document.getElementById("newGroupBatchGroup");
   const batchSelect = document.getElementById("newGroupBatch");
-  if (!deptSelect || !batchGroup || !batchSelect) return;
+  if (!deptSelect) return;
 
   if (deptSelect.value === "ECS") {
-    batchGroup.style.display = "none";
-    batchSelect.required = false;
-    batchSelect.value = "—";
+    // ECS: Divisions A & B only, No batches
+    if (divGroup) divGroup.style.display = "block";
+    if (divSelect) divSelect.required = true;
+    if (batchGroup) batchGroup.style.display = "none";
+    if (batchSelect) {
+      batchSelect.required = false;
+      batchSelect.value = "—";
+    }
   } else {
-    batchGroup.style.display = "block";
-    batchSelect.required = true;
-    if (batchSelect.value === "—" || !batchSelect.value) {
-      batchSelect.value = "Batch 1";
+    // Instrumentation: Batches B1 & B2 only, No divisions
+    if (divGroup) divGroup.style.display = "none";
+    if (divSelect) {
+      divSelect.required = false;
+      divSelect.value = "—";
+    }
+    if (batchGroup) batchGroup.style.display = "block";
+    if (batchSelect) {
+      batchSelect.required = true;
+      if (batchSelect.value === "—" || !batchSelect.value) {
+        batchSelect.value = "Batch 1";
+      }
     }
   }
 }
@@ -449,10 +479,12 @@ function handleNewGroupDeptChange() {
 function handleFacultyRowDeptChange(deptSelect, rowId) {
   const row = document.getElementById(rowId);
   if (!row) return;
+  const divCol = row.querySelector(".rf-col-div");
   const batchContainer = row.querySelector(".rf-col-batch");
   if (!batchContainer) return;
 
   if (deptSelect.value === "ECS") {
+    if (divCol) divCol.style.display = "block";
     batchContainer.innerHTML = `
       <label>Batches</label>
       <div class="ecs-batch-note">
@@ -460,13 +492,12 @@ function handleFacultyRowDeptChange(deptSelect, rowId) {
       </div>
     `;
   } else {
+    if (divCol) divCol.style.display = "none";
     batchContainer.innerHTML = `
-      <label>Batches (Check all)</label>
+      <label>Batches (B1 &amp; B2 Only)</label>
       <div class="batch-checkboxes">
         <label><input type="checkbox" value="Batch 1" checked> B1</label>
         <label><input type="checkbox" value="Batch 2" checked> B2</label>
-        <label><input type="checkbox" value="Batch 3"> B3</label>
-        <label><input type="checkbox" value="Batch 4"> B4</label>
       </div>
     `;
   }
@@ -495,11 +526,10 @@ function addFacultyAssignmentRow() {
         <label>Class</label>
         <select class="f-class" required>
           <option value="Third Year">Third Year (TE)</option>
-          <option value="Final Year">Final Year (BE)</option>
         </select>
       </div>
 
-      <div class="rf-col">
+      <div class="rf-col rf-col-div">
         <label>Division</label>
         <select class="f-div" required>
           <option value="Div A">Division A</option>
@@ -734,7 +764,7 @@ async function handleStudentRegister(e) {
   const email = document.getElementById("stuRegEmail").value.trim().toLowerCase();
   const department = document.getElementById("stuRegDept").value;
   const student_class = document.getElementById("stuRegClass").value;
-  const division = document.getElementById("stuRegDiv").value;
+  const division = department === "Instrumentation" ? "—" : (document.getElementById("stuRegDiv") ? document.getElementById("stuRegDiv").value : "—");
   const rawBatch = document.getElementById("stuRegBatch") ? document.getElementById("stuRegBatch").value : "—";
   const batch = department === "ECS" ? "—" : rawBatch;
   const password = document.getElementById("stuRegPassword").value;
@@ -776,8 +806,8 @@ async function handleStudentRegister(e) {
       syncUserProfileToFirestore(currentUser);
 
       const regMsg = department === "ECS" 
-        ? `Registered as student for ${department} ${division}` 
-        : `Registered as student for ${department} ${division} (${batch})`;
+        ? `Registered as student for ECS ${division}` 
+        : `Registered as student for Instrumentation (${batch})`;
       showToast(regMsg, "success");
       setupWebSocket();
       showAppUI();
@@ -1242,6 +1272,7 @@ function renderMyGroupDetails(group) {
   renderStudentPitch(group.pitch_strategy || {});
   renderStudentDigitalMarketing(group.digital_marketing || {});
   renderStudentEmployability(group.employability_portfolio || {}, group.member_names || []);
+  renderStudentCustomerReviews(group);
   renderStudentMarks(group.score);
 }
 
@@ -1947,14 +1978,146 @@ function exportVentureDossier() {
   const emp = g.employability_portfolio || {};
   const pitch = g.pitch_strategy || {};
 
-  let rolesObj = {};
+// Render Customer Reviews & Star Ratings in Student Dashboard
+function renderStudentCustomerReviews(group) {
+  const container = document.getElementById("studentReviewsListContainer");
+  const countBadge = document.getElementById("reviewCountDisplay");
+  const avgBadge = document.getElementById("avgRatingDisplay");
+  if (!container) return;
+
+  const revs = group.customer_reviews || [];
+  const metrics = group.marketing_metrics || {};
+  const avg = group.average_rating !== undefined ? group.average_rating : (metrics.average_rating || 5.0);
+
+  if (countBadge) countBadge.textContent = revs.length;
+  if (avgBadge) avgBadge.textContent = avg.toFixed(1);
+
+  if (revs.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 1.5rem; background: var(--bg-card); border-radius: 8px; color: var(--text-muted); border: 1px dashed var(--border-color);">
+        <i class="fa-regular fa-comments" style="font-size: 1.75rem; margin-bottom: 0.5rem; color: #f59e0b;"></i>
+        <p style="margin: 0; font-size: 0.9rem;">No customer reviews logged yet. Share your live product showcase link or log pilot user testimonials above!</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      ${revs.map(r => {
+        const stars = "★".repeat(r.rating || 5) + "☆".repeat(5 - (r.rating || 5));
+        return `
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.85rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <strong style="font-size: 0.95rem; color: var(--text-main);">${escapeHtml(r.customer_name)}</strong>
+                <span style="color: #f59e0b; font-size: 0.85rem;">${stars} (${r.rating}/5)</span>
+              </div>
+              <p style="margin: 0; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.comment || '')}</p>
+            </div>
+            ${r.created_at ? `<small style="color: var(--text-muted); white-space: nowrap; font-size: 0.75rem;">${new Date(r.created_at).toLocaleDateString()}</small>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Handler for logging a customer review directly from the student dashboard
+async function handleLogPilotReview(e) {
+  e.preventDefault();
+  if (!currentMyGroup) return;
+
+  const name = document.getElementById("pilotCustName").value.trim();
+  const rating = parseInt(document.getElementById("pilotCustRating").value);
+  const comment = document.getElementById("pilotCustComment").value.trim();
+
+  const revObj = {
+    id: "rev_" + Date.now(),
+    customer_name: name,
+    rating: rating,
+    comment: comment,
+    created_at: new Date().toISOString()
+  };
+
   try {
-    rolesObj = typeof emp.team_roles_json === "string" ? JSON.parse(emp.team_roles_json || "{}") : (emp.team_roles_json || {});
-  } catch (e) {}
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const revs = currentMyGroup.customer_reviews || [];
+      revs.unshift(revObj);
+      const totalSum = revs.reduce((acc, r) => acc + (r.rating || 5), 0);
+      const newAvg = roundTo1(totalSum / revs.length);
+
+      await window.firestoreDb.collection("groups").doc(currentMyGroup.id).update({
+        customer_reviews: revs,
+        average_rating: newAvg,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      currentMyGroup.customer_reviews = revs;
+      currentMyGroup.average_rating = newAvg;
+      renderStudentCustomerReviews(currentMyGroup);
+      showToast("Customer review recorded successfully!", "success");
+      document.getElementById("pilotCustomerReviewForm").reset();
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/api/groups/${currentMyGroup.id}/reviews`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ customer_name: name, rating, comment })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to log customer review");
+
+    if (!currentMyGroup.customer_reviews) currentMyGroup.customer_reviews = [];
+    currentMyGroup.customer_reviews.unshift(data.review || revObj);
+    renderStudentCustomerReviews(currentMyGroup);
+    showToast("Customer review recorded successfully!", "success");
+    document.getElementById("pilotCustomerReviewForm").reset();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function roundTo1(val) {
+  return Math.round(val * 10) / 10;
+}
+
+// Comprehensive Product Performance & Growth Potential Report
+function exportProductPerformanceReport() {
+  if (!currentMyGroup) return;
+  const g = currentMyGroup;
+  const mkt = g.digital_marketing || {};
+  const metrics = g.marketing_metrics || {};
+  const pitch = g.pitch_strategy || {};
+  const reviews = g.customer_reviews || [];
+  const score = g.score || {};
+
+  const totalReviews = reviews.length;
+  const avgRating = g.average_rating !== undefined ? g.average_rating : (metrics.average_rating || 5.0);
+
+  // Compute Growth Potential Index (0-100)
+  const reachScore = Math.min(25, (metrics.total_unique_views || 0) * 2.5);
+  const ratingScore = (avgRating / 5.0) * 25;
+  const milestonesScore = (['step1_status', 'step2_status', 'step3_status', 'step4_status', 'step5_status']
+    .filter(s => g[s] === 'approved').length) * 5; // max 25
+  const academicScore = ((score.total || 0) / 50.0) * 25;
+  const growthIndex = Math.min(100, Math.round(reachScore + ratingScore + milestonesScore + academicScore));
+
+  let growthTier = "High Market Growth Potential";
+  let tierColor = "#10b981";
+  if (growthIndex < 50) {
+    growthTier = "Early Validation Phase";
+    tierColor = "#f59e0b";
+  } else if (growthIndex < 75) {
+    growthTier = "Promising Commercial Traction";
+    tierColor = "#3b82f6";
+  }
 
   const printWin = window.open("", "_blank");
   if (!printWin) {
-    showToast("Please allow popups to export your Venture Dossier.", "error");
+    showToast("Please allow popups to open the Product Performance Report.", "error");
     return;
   }
 
@@ -1962,81 +2125,363 @@ function exportVentureDossier() {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${escapeHtml(g.name)} - Entrepreneurship & Digital Marketing Dossier</title>
+      <title>${escapeHtml(g.name)} - Product Performance & Growth Potential Report</title>
+      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
       <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 2rem; color: #1e293b; max-width: 900px; margin: 0 auto; line-height: 1.6; }
-        .dossier-header { border-bottom: 3px solid #4f46e5; padding-bottom: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-end; }
-        .dossier-title { font-size: 1.75rem; font-weight: 800; color: #0f172a; margin: 0; }
-        .dossier-meta { font-size: 0.9rem; color: #64748b; margin-top: 0.35rem; }
-        .section-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; background: #f8fafc; }
-        .section-box h3 { margin-top: 0; color: #4f46e5; font-size: 1.1rem; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.4rem; }
-        .tag-pill { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; margin-right: 0.4rem; }
-        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
-        th, td { border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; text-align: left; }
-        th { background: #e2e8f0; font-weight: 700; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 2.5rem; color: #0f172a; max-width: 950px; margin: 0 auto; line-height: 1.6; background: #ffffff; }
+        .rep-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #10b981; padding-bottom: 1.5rem; margin-bottom: 2rem; }
+        .rep-title { font-size: 2rem; font-weight: 800; color: #0f172a; margin: 0; }
+        .rep-badge { display: inline-block; background: #ecfdf5; color: #065f46; font-size: 0.8rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 999px; margin-top: 0.5rem; border: 1px solid #a7f3d0; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; }
+        .metric-num { font-size: 1.85rem; font-weight: 800; color: #0f172a; margin: 0.25rem 0; font-family: 'JetBrains Mono', monospace; }
+        .metric-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 700; }
+        .growth-meter-box { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; border-radius: 14px; padding: 1.75rem; margin-bottom: 2rem; }
+        .growth-score { font-size: 3rem; font-weight: 800; color: #34d399; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+        .progress-bar-wrap { background: #334155; border-radius: 999px; height: 12px; overflow: hidden; margin: 1rem 0; }
+        .progress-bar-fill { background: linear-gradient(90deg, #10b981, #38bdf8); height: 100%; width: ${growthIndex}%; }
+        .section-box { border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; background: #ffffff; }
+        .section-box h3 { margin-top: 0; font-size: 1.15rem; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { border: 1px solid #cbd5e1; padding: 0.6rem 0.85rem; text-align: left; }
+        th { background: #f1f5f9; font-weight: 700; }
+        .review-quote { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 0 8px 8px 0; }
         @media print { .no-print { display: none; } body { padding: 0; } }
       </style>
     </head>
     <body>
-      <div class="no-print" style="margin-bottom: 1rem; text-align: right;">
-        <button onclick="window.print()" style="padding: 0.6rem 1.2rem; background: #4f46e5; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-          Print / Save as Placement PDF
+      <div class="no-print" style="margin-bottom: 1.5rem; text-align: right;">
+        <button onclick="window.print()" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 0.95rem;">
+          Print / Download Executive PDF Report
         </button>
       </div>
 
-      <div class="dossier-header">
+      <div class="rep-header">
         <div>
-          <h1 class="dossier-title">${escapeHtml(g.name)}</h1>
-          <div class="dossier-meta">${escapeHtml(g.department)} • ${escapeHtml(g.student_class)} • ${escapeHtml(g.division)}${(g.department !== "ECS" && g.batch && g.batch !== "—") ? ` • ${escapeHtml(g.batch)}` : ''}</div>
+          <span style="font-size: 0.8rem; font-weight: 800; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em;">Product Performance &amp; Commercial Growth Dossier</span>
+          <h1 class="rep-title">${escapeHtml(g.name)}</h1>
+          <div style="font-size: 0.9rem; color: #475569; margin-top: 0.35rem;">
+            Group ID: <strong>${escapeHtml(g.id)}</strong> • ${escapeHtml(g.department)} • ${escapeHtml(g.student_class)} • ${escapeHtml(g.division)}${(g.department !== "ECS" && g.batch && g.batch !== "—") ? ` • ${escapeHtml(g.batch)}` : ''}
+          </div>
         </div>
         <div style="text-align: right;">
-          <span class="tag-pill">E&amp;DM CAPSTONE DOSSIER</span>
-          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">Group Leader: ${escapeHtml(g.creator_name)}</div>
+          <span class="rep-badge">Verified E&amp;DM Capstone Venture</span>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">Group Leader: ${escapeHtml(g.creator_name)}</div>
         </div>
       </div>
 
-      <div class="section-box">
-        <h3>1. Executive Placement Summary &amp; Elevator Pitch</h3>
-        <p><strong>Tagline:</strong> "${escapeHtml(pitch.hook_tagline || 'N/A')}"</p>
-        <p>${escapeHtml(emp.executive_summary || g.step1_problem_statement || 'Venture summary recorded.')}</p>
+      <!-- Growth Potential Meter -->
+      <div class="growth-meter-box">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+          <div>
+            <span style="text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.1em; color: #94a3b8;">Commercial Scalability Index</span>
+            <div class="growth-score">${growthIndex} <span style="font-size: 1.5rem; color: #cbd5e1;">/ 100</span></div>
+          </div>
+          <div style="text-align: right;">
+            <span style="background: ${tierColor}; color: white; padding: 0.35rem 0.85rem; border-radius: 999px; font-weight: 800; font-size: 0.85rem;">
+              ${growthTier}
+            </span>
+          </div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <p style="margin: 0; font-size: 0.85rem; color: #94a3b8;">Calculated live across deduplicated marketing reach, authentic customer reviews, approved curriculum milestones, and academic rubric evaluation.</p>
       </div>
 
-      <div class="section-box">
-        <h3>2. 5-Step Sequential Milestone Validation</h3>
-        <p><strong>Step 1 (Problem &amp; Need):</strong> ${escapeHtml(g.step1_problem_statement || '—')}</p>
-        <p><strong>Step 2 (Market Validation):</strong> ${escapeHtml(g.step2_market_research || '—')}</p>
-        <p><strong>Step 3 (Technical Prototype):</strong> ${escapeHtml(g.step3_innovative_solution || '—')}</p>
-        <p><strong>Step 4 (Feasibility &amp; Economics):</strong> ${escapeHtml(g.step4_feasibility_business_model || '—')}</p>
-        <p><strong>Step 5 (Digital Marketing &amp; Pitch):</strong> ${escapeHtml(g.step5_marketing_presentation || '—')}</p>
+      <!-- Real-Time Traction & Audience Reach -->
+      <div class="grid-3">
+        <div class="metric-card">
+          <span class="metric-label">Deduplicated People Reached</span>
+          <div class="metric-num">${(metrics.total_unique_views || 0).toLocaleString()}</div>
+          <small style="color: #64748b;">Unique Viewers</small>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Customer Star Rating</span>
+          <div class="metric-num" style="color: #f59e0b;">★ ${avgRating.toFixed(1)} <small style="font-size: 0.9rem; color: #64748b;">/ 5.0</small></div>
+          <small style="color: #64748b;">Based on ${totalReviews} Customer Reviews</small>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Total Marketing Clicks</span>
+          <div class="metric-num">${(metrics.total_raw_clicks || 0).toLocaleString()}</div>
+          <small style="color: #64748b;">${metrics.engagement_rate || 0}% Engagement Ratio</small>
+        </div>
       </div>
 
+      <!-- Channel Breakdown -->
       <div class="section-box">
-        <h3>3. Real-Time Digital Promotion &amp; Acquisition Strategy</h3>
-        <p><strong>Inbound/Outbound Funnel:</strong> TOFU: ${escapeHtml(mkt.funnel_tofu_interest || '—')} | BOFU: ${escapeHtml(mkt.funnel_bofu_conversion || '—')}</p>
-        <p><strong>MarTech Tools Configured:</strong> ${(mkt.martech_tools || []).join(', ') || 'Standard stack'}</p>
-        <p><strong>Target Keywords &amp; SEO:</strong> ${escapeHtml(mkt.seo_keywords || '—')}</p>
-        <p><strong>B2B LinkedIn Pitch:</strong> "${escapeHtml(mkt.social_linkedin_copy || '—')}"</p>
-        <p><strong>Paid Ad Strategy:</strong> Budget: ₹${(mkt.ad_budget || 0).toLocaleString('en-IN')} | Headline: "${escapeHtml(mkt.ad_headline || '—')}"</p>
-      </div>
-
-      <div class="section-box">
-        <h3>4. Team Specialization &amp; Employability Matrix</h3>
+        <h3>1. Digital Acquisition &amp; Multi-Channel Distribution</h3>
         <table>
           <thead>
             <tr>
-              <th>Team Member Name</th>
-              <th>Assigned Professional Role</th>
+              <th>Channel</th>
+              <th>Attribution Channel Type</th>
+              <th>Unique People Reached</th>
             </tr>
           </thead>
           <tbody>
-            ${(g.member_names || []).map(m => `
-              <tr>
-                <td><strong>${escapeHtml(m)}</strong></td>
-                <td>${escapeHtml(rolesObj[m] || 'Product Marketing Specialist')}</td>
-              </tr>
-            `).join('')}
+            <tr>
+              <td><strong>WhatsApp Viral Distribution</strong></td>
+              <td>Peer-to-Peer Outreach</td>
+              <td>${metrics.whatsapp_unique || 0}</td>
+            </tr>
+            <tr>
+              <td><strong>Telegram Tech Channels</strong></td>
+              <td>Developer &amp; Hardware Communities</td>
+              <td>${metrics.telegram_unique || 0}</td>
+            </tr>
+            <tr>
+              <td><strong>LinkedIn &amp; Direct Links</strong></td>
+              <td>B2B Industry &amp; Faculty Outreach</td>
+              <td>${(metrics.linkedin_unique || 0) + (metrics.direct_unique || 0)}</td>
+            </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Customer Reviews & Testimonials -->
+      <div class="section-box">
+        <h3>2. Authenticated Customer Feedback &amp; Product Testimonials (${totalReviews} Reviews)</h3>
+        ${reviews.length === 0 ? '<p style="color: #64748b; font-style: italic;">No customer reviews recorded yet.</p>' : reviews.map(r => `
+          <div class="review-quote">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <strong>${escapeHtml(r.customer_name)}</strong>
+              <span style="color: #d97706; font-weight: bold;">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))} (${r.rating}/5)</span>
+            </div>
+            <div style="font-size: 0.9rem; color: #334155;">"${escapeHtml(r.comment || '')}"</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Milestone Approval & Academic Scorecard -->
+      <div class="section-box">
+        <h3>3. 5-Step Academic Rubric Assessment</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Step Milestone</th>
+              <th>Approval Status</th>
+              <th>Marks Awarded</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Step 1: Problem Statement &amp; Need</td><td>${g.step1_status === 'approved' ? 'Approved' : 'Pending'}</td><td><strong>${g.step1_score !== undefined ? g.step1_score : (score.step1_score || 0)} / 10</strong></td></tr>
+            <tr><td>Step 2: Market Research &amp; TAM Validation</td><td>${g.step2_status === 'approved' ? 'Approved' : 'Pending'}</td><td><strong>${g.step2_score !== undefined ? g.step2_score : (score.step2_score || 0)} / 10</strong></td></tr>
+            <tr><td>Step 3: Innovative Solution &amp; Prototype</td><td>${g.step3_status === 'approved' ? 'Approved' : 'Pending'}</td><td><strong>${g.step3_score !== undefined ? g.step3_score : (score.step3_score || 0)} / 10</strong></td></tr>
+            <tr><td>Step 4: Feasibility &amp; Business Model</td><td>${g.step4_status === 'approved' ? 'Approved' : 'Pending'}</td><td><strong>${g.step4_score !== undefined ? g.step4_score : (score.step4_score || 0)} / 10</strong></td></tr>
+            <tr><td>Step 5: Digital Marketing &amp; Pitch Deck</td><td>${g.step5_status === 'approved' ? 'Approved' : 'Pending'}</td><td><strong>${g.step5_score !== undefined ? g.step5_score : (score.step5_score || 0)} / 10</strong></td></tr>
+            <tr style="background: #f8fafc;"><td><strong>Total Capstone Evaluation</strong></td><td><strong>${score.total ? 'Evaluated' : 'In Progress'}</strong></td><td><strong style="color: #10b981; font-size: 1.05rem;">${score.total || 0} / 50 Pts</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Growth Potential Analysis -->
+      <div class="section-box">
+        <h3>4. Venture Growth Potential &amp; Scalability Assessment</h3>
+        <p><strong>Value Proposition:</strong> ${escapeHtml(pitch.hook_tagline || g.step1_problem_statement || 'High-performance engineering capstone.')}</p>
+        <p><strong>Target Customer Persona:</strong> ${escapeHtml(mkt.buyer_persona || pitch.target_audience || 'Engineering and enterprise pilot clients.')}</p>
+        <p><strong>Revenue Model:</strong> ${escapeHtml(pitch.revenue_stream || g.step4_feasibility_business_model || 'Subscription / Commercial MVP unit deployment.')}</p>
+        <p><strong>Growth Summary:</strong> Team demonstrates validated customer feedback with a <strong>${avgRating.toFixed(1)}/5.0</strong> satisfaction score, disciplined milestone completions, and strong employability readiness.</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 2.5rem; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+        Official Record • Department of Entrepreneurship &amp; Digital Marketing • Third Year (TE) Academic Cohort
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWin.document.open();
+  printWin.document.write(html);
+  printWin.document.close();
+}
+
+// ----------------- Certificate Generation Feature -----------------
+let currentCertificateData = null;
+
+function openCertificateModalForGroup(groupId, memberName) {
+  const g = allAdminGroups.find(group => group.id === groupId) || currentMyGroup;
+  if (!g) {
+    showToast("Group details not found.", "error");
+    return;
+  }
+
+  const score = g.score || {};
+  const totalScore = score.total || 0;
+  const metrics = g.marketing_metrics || {};
+
+  currentCertificateData = {
+    studentName: memberName,
+    projectName: g.name,
+    groupId: g.id,
+    department: g.department,
+    studentClass: g.student_class || "Third Year",
+    division: g.division,
+    batch: g.batch,
+    totalScore: totalScore,
+    facultyName: currentUser ? currentUser.name : "Course Coordinator",
+    issueDate: new Date().toLocaleDateString("en-IN", { day: 'numeric', month: 'long', year: 'numeric' })
+  };
+
+  const container = document.getElementById("certificateContainer");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="official-certificate-sheet" id="officialCertificateSheet">
+      <div class="cert-outer-border">
+        <div class="cert-inner-border">
+          <div class="cert-corner tl"></div>
+          <div class="cert-corner tr"></div>
+          <div class="cert-corner bl"></div>
+          <div class="cert-corner br"></div>
+
+          <div class="cert-header">
+            <div class="cert-institution-badge">DEPARTMENT OF ENTREPRENEURSHIP &amp; DIGITAL MARKETING</div>
+            <h1 class="cert-title">Certificate of Excellence</h1>
+            <div class="cert-subtitle">CAPSTONE ENGINEERING &amp; DIGITAL VENTURE ACCREDITATION</div>
+          </div>
+
+          <div class="cert-body">
+            <p class="cert-text-lead">This is proudly presented to</p>
+            <h2 class="cert-student-name">${escapeHtml(currentCertificateData.studentName)}</h2>
+            <p class="cert-paragraph">
+              of <strong>${escapeHtml(currentCertificateData.department)} Engineering</strong> (${escapeHtml(currentCertificateData.studentClass)}${currentCertificateData.division !== '—' ? ` • ${escapeHtml(currentCertificateData.division)}` : ''}${currentCertificateData.batch && currentCertificateData.batch !== '—' ? ` • ${escapeHtml(currentCertificateData.batch)}` : ''})
+              for outstanding capstone execution and commercialization of the project:
+            </p>
+            <h3 class="cert-project-title">"${escapeHtml(currentCertificateData.projectName)}"</h3>
+            <p class="cert-skills-list">
+              Demonstrated verified mastery in <strong>Problem Discovery</strong>, <strong>Market Validation</strong>, 
+              <strong>Rapid Prototyping</strong>, <strong>Unit Economics Modeling</strong>, and <strong>Multi-Channel Digital Marketing</strong>.
+            </p>
+
+            <div class="cert-score-pill">
+              Academic Assessment Score: <strong>${currentCertificateData.totalScore} / 50 Points</strong> • Project ID: <strong>${escapeHtml(currentCertificateData.groupId)}</strong>
+            </div>
+          </div>
+
+          <div class="cert-footer">
+            <div class="cert-signature-block">
+              <div class="cert-sig-line"></div>
+              <span class="cert-sig-name">${escapeHtml(currentCertificateData.facultyName)}</span>
+              <span class="cert-sig-title">Faculty Evaluator / Course In-Charge</span>
+            </div>
+
+            <div class="cert-seal-wrap">
+              <div class="cert-gold-seal">
+                <i class="fa-solid fa-award"></i>
+                <span>VERIFIED RECORD</span>
+              </div>
+            </div>
+
+            <div class="cert-signature-block">
+              <div class="cert-sig-line"></div>
+              <span class="cert-sig-name">Dean / Academic Head</span>
+              <span class="cert-sig-title">Date: ${currentCertificateData.issueDate}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const modal = document.getElementById("certificateModal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeCertificateModal() {
+  const modal = document.getElementById("certificateModal");
+  if (modal) modal.style.display = "none";
+}
+
+function printOfficialCertificate() {
+  if (!currentCertificateData) return;
+  const d = currentCertificateData;
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    showToast("Please allow popups to print certificate.", "error");
+    return;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Certificate - ${escapeHtml(d.studentName)} - ${escapeHtml(d.projectName)}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+      <style>
+        @page { size: landscape; margin: 0; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 2rem; background: #fdfbf7; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .cert-outer-border { width: 1000px; height: 680px; padding: 18px; border: 8px solid #b45309; background: #fffdfa; box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; }
+        .cert-inner-border { width: 100%; height: 100%; border: 2px solid #d97706; padding: 2rem 2.5rem; text-align: center; position: relative; display: flex; flex-direction: column; justify-content: space-between; }
+        .cert-institution-badge { font-family: 'Cinzel', serif; font-size: 0.95rem; font-weight: 800; letter-spacing: 0.18em; color: #92400e; margin-bottom: 0.5rem; }
+        .cert-title { font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 900; color: #1e293b; letter-spacing: 0.08em; margin: 0 0 0.35rem 0; text-transform: uppercase; }
+        .cert-subtitle { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.15em; color: #64748b; text-transform: uppercase; }
+        .cert-text-lead { font-size: 1.05rem; color: #64748b; margin: 1rem 0 0.25rem 0; font-style: italic; }
+        .cert-student-name { font-family: 'Cinzel', serif; font-size: 2.2rem; font-weight: 900; color: #b45309; margin: 0.25rem 0 0.75rem 0; border-bottom: 2px solid #fde68a; display: inline-block; padding: 0 2rem 0.25rem 2rem; }
+        .cert-paragraph { font-size: 0.95rem; color: #334155; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+        .cert-project-title { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0.5rem 0; }
+        .cert-skills-list { font-size: 0.85rem; color: #475569; margin: 0.25rem 0 0.75rem 0; }
+        .cert-score-pill { display: inline-block; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 0.35rem 1rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem; }
+        .cert-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1rem; }
+        .cert-signature-block { width: 230px; text-align: center; }
+        .cert-sig-line { border-bottom: 1.5px solid #0f172a; margin-bottom: 0.35rem; }
+        .cert-sig-name { font-weight: 800; font-size: 0.9rem; color: #0f172a; display: block; }
+        .cert-sig-title { font-size: 0.75rem; color: #64748b; display: block; }
+        .cert-gold-seal { width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.65rem; font-weight: 800; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.4); border: 3px dashed #fef3c7; margin: 0 auto; }
+        @media print { body { padding: 0; background: white; } .cert-outer-border { box-shadow: none; border-color: #b45309; } }
+      </style>
+    </head>
+    <body onload="window.print()">
+      <div class="cert-outer-border">
+        <div class="cert-inner-border">
+          <div>
+            <div class="cert-institution-badge">DEPARTMENT OF ENTREPRENEURSHIP &amp; DIGITAL MARKETING</div>
+            <h1 class="cert-title">Certificate of Excellence</h1>
+            <div class="cert-subtitle">CAPSTONE ENGINEERING &amp; DIGITAL VENTURE ACCREDITATION</div>
+          </div>
+
+          <div>
+            <p class="cert-text-lead">This is proudly awarded to</p>
+            <h2 class="cert-student-name">${escapeHtml(d.studentName)}</h2>
+            <p class="cert-paragraph">
+              of <strong>${escapeHtml(d.department)} Engineering</strong> (${escapeHtml(d.studentClass)}${d.division !== '—' ? ` • ${escapeHtml(d.division)}` : ''}${d.batch && d.batch !== '—' ? ` • ${escapeHtml(d.batch)}` : ''})
+              for outstanding engineering diligence and commercialization execution of capstone project:
+            </p>
+            <h3 class="cert-project-title">"${escapeHtml(d.projectName)}"</h3>
+            <p class="cert-skills-list">
+              Verified Competencies: <strong>Problem Validation</strong> • <strong>Prototype Engineering</strong> • <strong>Unit Economics</strong> • <strong>Paid &amp; Organic Digital Acquisition</strong>
+            </p>
+            <div class="cert-score-pill">
+              Academic Evaluation Score: <strong>${d.totalScore} / 50 Points</strong> • Project ID: <strong>${escapeHtml(d.groupId)}</strong>
+            </div>
+          </div>
+
+          <div class="cert-footer">
+            <div class="cert-signature-block">
+              <div class="cert-sig-line"></div>
+              <span class="cert-sig-name">${escapeHtml(d.facultyName)}</span>
+              <span class="cert-sig-title">Faculty Evaluator / Course Lead</span>
+            </div>
+
+            <div class="cert-seal-wrap">
+              <div class="cert-gold-seal">
+                <span style="font-size: 1.1rem; line-height: 1;">★</span>
+                <span>OFFICIAL</span>
+                <span>SEAL</span>
+              </div>
+            </div>
+
+            <div class="cert-signature-block">
+              <div class="cert-sig-line"></div>
+              <span class="cert-sig-name">Dean of Academics</span>
+              <span class="cert-sig-title">Date: ${d.issueDate}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </body>
     </html>
@@ -2062,44 +2507,55 @@ function renderStudentMarks(score) {
     return;
   }
 
+  const s1 = score.step1_score !== undefined ? score.step1_score : (score.innovation ? Math.round(score.innovation * 10 / 15) : 0);
+  const s2 = score.step2_score !== undefined ? score.step2_score : (score.feasibility || 0);
+  const s3 = score.step3_score !== undefined ? score.step3_score : (score.solution ? Math.round(score.solution * 10 / 15) : 0);
+  const s4 = score.step4_score !== undefined ? score.step4_score : (score.presentation ? Math.round(score.presentation / 2) : 0);
+  const s5 = score.step5_score !== undefined ? score.step5_score : (score.presentation ? Math.round(score.presentation / 2) : 0);
+
   container.innerHTML = `
     <div class="marks-card">
       <div class="marks-awarded-container">
         <div class="marks-header-row">
           <div>
             <span class="role-tag">FACULTY RUBRIC EVALUATION</span>
-            <h3 style="font-weight: 800; font-size: 1.15rem;">Project Evaluation Results</h3>
+            <h3 style="font-weight: 800; font-size: 1.15rem;">5-Step Milestone Assessment Marks</h3>
           </div>
           <div class="marks-total-badge">
-            ${score.total} <small>/ 50</small>
+            ${score.total} <small>/ 50 Pts</small>
           </div>
         </div>
 
-        <div class="criteria-grid">
+        <div class="criteria-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
           <div class="criteria-cell">
-            <span class="c-label">Innovation</span>
-            <span class="c-score">${score.innovation}</span>
-            <span class="c-max">/ 15</span>
-          </div>
-          <div class="criteria-cell">
-            <span class="c-label">Feasibility</span>
-            <span class="c-score">${score.feasibility}</span>
+            <span class="c-label">Step 1: Need</span>
+            <span class="c-score">${s1}</span>
             <span class="c-max">/ 10</span>
           </div>
           <div class="criteria-cell">
-            <span class="c-label">Solution</span>
-            <span class="c-score">${score.solution}</span>
-            <span class="c-max">/ 15</span>
+            <span class="c-label">Step 2: Market</span>
+            <span class="c-score">${s2}</span>
+            <span class="c-max">/ 10</span>
           </div>
           <div class="criteria-cell">
-            <span class="c-label">Presentation</span>
-            <span class="c-score">${score.presentation}</span>
+            <span class="c-label">Step 3: Solution</span>
+            <span class="c-score">${s3}</span>
+            <span class="c-max">/ 10</span>
+          </div>
+          <div class="criteria-cell">
+            <span class="c-label">Step 4: Business</span>
+            <span class="c-score">${s4}</span>
+            <span class="c-max">/ 10</span>
+          </div>
+          <div class="criteria-cell">
+            <span class="c-label">Step 5: Marketing</span>
+            <span class="c-score">${s5}</span>
             <span class="c-max">/ 10</span>
           </div>
         </div>
 
         ${score.remarks ? `
-          <div class="remarks-quote-box">
+          <div class="remarks-quote-box" style="margin-top: 1rem;">
             <strong>Faculty Remarks:</strong> "${escapeHtml(score.remarks)}"
           </div>
         ` : ''}
@@ -2122,7 +2578,7 @@ async function handleCreateGroup(e) {
   const name = document.getElementById("newGroupName").value.trim();
   const department = document.getElementById("newGroupDept").value;
   const student_class = document.getElementById("newGroupClass").value;
-  const division = document.getElementById("newGroupDiv").value;
+  const division = department === "Instrumentation" ? "—" : (document.getElementById("newGroupDiv") ? document.getElementById("newGroupDiv").value : "—");
   const rawBatch = document.getElementById("newGroupBatch") ? document.getElementById("newGroupBatch").value : "—";
   const batch = department === "ECS" ? "—" : rawBatch;
   const rawMembers = document.getElementById("newMemberNames").value;
@@ -2134,8 +2590,29 @@ async function handleCreateGroup(e) {
 
   try {
     if (IS_PURE_FIREBASE && window.firestoreDb) {
+      // 1. Verify if user or any member is already in a group
+      const existingSnap = await window.firestoreDb.collection("groups").get();
+      existingSnap.forEach(doc => {
+        const g = doc.data();
+        const memberIds = g.member_user_ids || [];
+        const memberNames = (g.member_names || []).map(m => m.toLowerCase());
+        
+        if (memberIds.includes(currentUser.id)) {
+          throw new Error("You are already enrolled in a group.");
+        }
+        for (const m of member_names) {
+          if (memberNames.includes(m.toLowerCase())) {
+            if (m.toLowerCase() === currentUser.name.toLowerCase()) {
+              throw new Error("You are already enrolled in a group.");
+            } else {
+              throw new Error(`Member "${m}" is already enrolled in another group (${g.name}).`);
+            }
+          }
+        }
+      });
+
       const invite_code = generateRandomInviteCode();
-      const groupId = "grp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+      const groupId = "GRP-" + Math.random().toString(36).substring(2, 7).toUpperCase();
 
       const groupPayload = {
         id: groupId,
@@ -2159,6 +2636,11 @@ async function handleCreateGroup(e) {
         step3_status: "pending",
         step4_status: "pending",
         step5_status: "pending",
+        step1_score: 0,
+        step2_score: 0,
+        step3_score: 0,
+        step4_score: 0,
+        step5_score: 0,
         step1_remarks: "",
         step2_remarks: "",
         step3_remarks: "",
@@ -2168,13 +2650,17 @@ async function handleCreateGroup(e) {
         pitch_strategy: {},
         digital_marketing: {},
         employability_portfolio: {},
+        customer_reviews: [],
+        average_rating: 5.0,
         marketing_metrics: {
           total_unique_views: 0,
           total_raw_clicks: 0,
           whatsapp_unique: 0,
           telegram_unique: 0,
           linkedin_unique: 0,
-          engagement_rate: 0
+          engagement_rate: 0,
+          total_reviews: 0,
+          average_rating: 5.0
         },
         score: null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2182,7 +2668,7 @@ async function handleCreateGroup(e) {
       };
 
       await window.firestoreDb.collection("groups").doc(groupId).set(groupPayload);
-      showToast("Group registered! You are now Group Leader.", "success");
+      showToast(`Group registered successfully! Assigned Group ID: ${groupId}`, "success");
       await loadMyGroup();
       return;
     }
@@ -2196,7 +2682,8 @@ async function handleCreateGroup(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to create group");
 
-    showToast("Group registered! You are now Group Leader.", "success");
+    const assignedId = data.group ? data.group.id : "Registered";
+    showToast(`Group registered successfully! Assigned Group ID: ${assignedId}`, "success");
     loadMyGroup();
     if (data.group) syncGroupToFirestore(data.group);
   } catch (err) {
@@ -2348,15 +2835,29 @@ async function loadAdminGroups(showToastNotice = false) {
 
   const dept = document.getElementById("filterDept").value;
   const cls = document.getElementById("filterClass").value;
-  const div = document.getElementById("filterDiv").value;
+  const rawDiv = document.getElementById("filterDiv").value;
   const rawBatch = document.getElementById("filterBatch").value;
+  
+  // Instrumentation has no divisions; ECS has no batches
+  const div = dept === "Instrumentation" ? "All" : rawDiv;
   const batch = dept === "ECS" ? "All" : rawBatch;
+
+  const divSelect = document.getElementById("filterDiv");
+  if (divSelect) {
+    if (dept === "Instrumentation") {
+      divSelect.disabled = true;
+      divSelect.title = "No divisions in Instrumentation department (Batches B1 and B2 only)";
+    } else {
+      divSelect.disabled = false;
+      divSelect.title = "";
+    }
+  }
 
   const batchSelect = document.getElementById("filterBatch");
   if (batchSelect) {
     if (dept === "ECS") {
       batchSelect.disabled = true;
-      batchSelect.title = "No batches in ECS department";
+      batchSelect.title = "No batches in ECS department (Divisions A and B only)";
     } else {
       batchSelect.disabled = false;
       batchSelect.title = "";
@@ -2625,27 +3126,52 @@ function renderAdminGroups(groups) {
             </div>
           </div>
 
+          <!-- Certificate Generation Section for Faculty -->
+          <div class="card" style="margin-top: 1rem; background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <h4 style="margin: 0; font-size: 0.95rem; color: #d97706;"><i class="fa-solid fa-award"></i> Issue Student Performance &amp; Skills Certificates</h4>
+              <small style="color: var(--text-muted);">Generate verifiable completion certificate for individual members</small>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              ${(g.member_names || []).map(m => `
+                <button type="button" class="btn btn-sm btn-outline" style="border-color: #f59e0b; color: #b45309;" onclick="openCertificateModalForGroup('${g.id}', '${escapeHtml(m).replace(/'/g, "\\'")}')">
+                  <i class="fa-solid fa-certificate"></i> Certify ${escapeHtml(m)}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
           <!-- Budget & Pitch Strategy Overview for Faculty -->
           ${renderAdminBudgetAndPitchSummary(g)}
 
-          <!-- Inline Scoring UI -->
+          <!-- Per-Step Inline Scoring UI (Each Step: 0 to 10 Pts, Total: 50 Pts) -->
           <form class="scoring-form" onsubmit="handleSaveScore(event, '${g.id}')">
-            <div class="scoring-grid">
+            <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">
+                <i class="fa-solid fa-pen-ruler"></i> Faculty Per-Step Marking Schema (0-10 Pts per Step)
+              </span>
+              <small style="color: var(--text-muted);">Enter marks earned for each validated milestone</small>
+            </div>
+            <div class="scoring-grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
               <div class="score-col">
-                <label for="innov-${g.id}">Innovation (0-15)</label>
-                <input type="number" id="innov-${g.id}" min="0" max="15" value="${s.innovation}" required oninput="recalcInlineTotal('${g.id}')">
+                <label for="s1-${g.id}">Step 1 (/10)</label>
+                <input type="number" id="s1-${g.id}" min="0" max="10" value="${s.step1_score !== undefined ? s.step1_score : (s.innovation ? Math.round(s.innovation * 10 / 15) : 0)}" required oninput="recalcInlineTotal('${g.id}')">
               </div>
               <div class="score-col">
-                <label for="feas-${g.id}">Feasibility (0-10)</label>
-                <input type="number" id="feas-${g.id}" min="0" max="10" value="${s.feasibility}" required oninput="recalcInlineTotal('${g.id}')">
+                <label for="s2-${g.id}">Step 2 (/10)</label>
+                <input type="number" id="s2-${g.id}" min="0" max="10" value="${s.step2_score !== undefined ? s.step2_score : (s.feasibility || 0)}" required oninput="recalcInlineTotal('${g.id}')">
               </div>
               <div class="score-col">
-                <label for="sol-${g.id}">Solution (0-15)</label>
-                <input type="number" id="sol-${g.id}" min="0" max="15" value="${s.solution}" required oninput="recalcInlineTotal('${g.id}')">
+                <label for="s3-${g.id}">Step 3 (/10)</label>
+                <input type="number" id="s3-${g.id}" min="0" max="10" value="${s.step3_score !== undefined ? s.step3_score : (s.solution ? Math.round(s.solution * 10 / 15) : 0)}" required oninput="recalcInlineTotal('${g.id}')">
               </div>
               <div class="score-col">
-                <label for="pres-${g.id}">Presentation (0-10)</label>
-                <input type="number" id="pres-${g.id}" min="0" max="10" value="${s.presentation}" required oninput="recalcInlineTotal('${g.id}')">
+                <label for="s4-${g.id}">Step 4 (/10)</label>
+                <input type="number" id="s4-${g.id}" min="0" max="10" value="${s.step4_score !== undefined ? s.step4_score : (s.presentation ? Math.round(s.presentation / 2) : 0)}" required oninput="recalcInlineTotal('${g.id}')">
+              </div>
+              <div class="score-col">
+                <label for="s5-${g.id}">Step 5 (/10)</label>
+                <input type="number" id="s5-${g.id}" min="0" max="10" value="${s.step5_score !== undefined ? s.step5_score : (s.presentation ? Math.round(s.presentation / 2) : 0)}" required oninput="recalcInlineTotal('${g.id}')">
               </div>
               <div class="score-total-display">
                 <span class="st-label">Total / 50</span>
@@ -2656,7 +3182,7 @@ function renderAdminGroups(groups) {
             <div class="scoring-footer">
               <input type="text" id="remarks-${g.id}" placeholder="Faculty evaluation remarks & feedback..." value="${escapeHtml(s.remarks || '')}">
               <button type="submit" class="btn btn-primary btn-sm" id="btn-score-${g.id}">
-                <i class="fa-solid fa-check"></i> Save Score
+                <i class="fa-solid fa-check"></i> Save Step Marks
               </button>
             </div>
           </form>
@@ -2807,23 +3333,34 @@ async function handleVerifyStep(groupId, stepNum, statusVal) {
 }
 
 function recalcInlineTotal(groupId) {
-  const i = Math.min(15, Math.max(0, parseInt(document.getElementById(`innov-${groupId}`).value) || 0));
-  const f = Math.min(10, Math.max(0, parseInt(document.getElementById(`feas-${groupId}`).value) || 0));
-  const s = Math.min(15, Math.max(0, parseInt(document.getElementById(`sol-${groupId}`).value) || 0));
-  const p = Math.min(10, Math.max(0, parseInt(document.getElementById(`pres-${groupId}`).value) || 0));
+  const s1 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s1-${groupId}`) ? document.getElementById(`s1-${groupId}`).value : 0) || 0));
+  const s2 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s2-${groupId}`) ? document.getElementById(`s2-${groupId}`).value : 0) || 0));
+  const s3 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s3-${groupId}`) ? document.getElementById(`s3-${groupId}`).value : 0) || 0));
+  const s4 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s4-${groupId}`) ? document.getElementById(`s4-${groupId}`).value : 0) || 0));
+  const s5 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s5-${groupId}`) ? document.getElementById(`s5-${groupId}`).value : 0) || 0));
 
-  const total = i + f + s + p;
-  document.getElementById(`total-${groupId}`).textContent = total;
+  const total = s1 + s2 + s3 + s4 + s5;
+  const totDisplay = document.getElementById(`total-${groupId}`);
+  if (totDisplay) totDisplay.textContent = total;
 }
 
 async function handleSaveScore(e, groupId) {
   e.preventDefault();
-  const innovation = parseInt(document.getElementById(`innov-${groupId}`).value) || 0;
-  const feasibility = parseInt(document.getElementById(`feas-${groupId}`).value) || 0;
-  const solution = parseInt(document.getElementById(`sol-${groupId}`).value) || 0;
-  const presentation = parseInt(document.getElementById(`pres-${groupId}`).value) || 0;
+  const s1 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s1-${groupId}`).value) || 0));
+  const s2 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s2-${groupId}`).value) || 0));
+  const s3 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s3-${groupId}`).value) || 0));
+  const s4 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s4-${groupId}`).value) || 0));
+  const s5 = Math.min(10, Math.max(0, parseInt(document.getElementById(`s5-${groupId}`).value) || 0));
   const remarks = document.getElementById(`remarks-${groupId}`).value.trim();
-  const total = innovation + feasibility + solution + presentation;
+  const total = s1 + s2 + s3 + s4 + s5;
+
+  // Proportional legacy mapping
+  const innovation = Math.min(15, Math.round(s1 * 1.5));
+  const feasibility = Math.min(10, s2);
+  const solution = Math.min(15, Math.round(s3 * 1.5));
+  let presentation = total - (innovation + feasibility + solution);
+  if (presentation < 0) presentation = 0;
+  if (presentation > 10) presentation = 10;
 
   const submitBtn = document.getElementById(`btn-score-${groupId}`);
 
@@ -2834,6 +3371,11 @@ async function handleSaveScore(e, groupId) {
     if (IS_PURE_FIREBASE && window.firestoreDb) {
       const scoreObj = {
         group_id: groupId,
+        step1_score: s1,
+        step2_score: s2,
+        step3_score: s3,
+        step4_score: s4,
+        step5_score: s5,
         innovation,
         feasibility,
         solution,
@@ -2845,9 +3387,14 @@ async function handleSaveScore(e, groupId) {
       await window.firestoreDb.collection("scores").doc(groupId).set(scoreObj, { merge: true });
       await window.firestoreDb.collection("groups").doc(groupId).update({
         score: scoreObj,
+        step1_score: s1,
+        step2_score: s2,
+        step3_score: s3,
+        step4_score: s4,
+        step5_score: s5,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-      showToast(`Score updated! Total: ${total}/50`, "success");
+      showToast(`Step marks updated! Total: ${total}/50`, "success");
       await loadAdminGroups(false);
       return;
     }
@@ -2855,7 +3402,18 @@ async function handleSaveScore(e, groupId) {
     const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}/score`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ innovation, feasibility, solution, presentation, remarks })
+      body: JSON.stringify({ 
+        step1_score: s1,
+        step2_score: s2,
+        step3_score: s3,
+        step4_score: s4,
+        step5_score: s5,
+        innovation, 
+        feasibility, 
+        solution, 
+        presentation, 
+        remarks 
+      })
     });
 
     const data = await res.json();
@@ -2864,22 +3422,27 @@ async function handleSaveScore(e, groupId) {
     if (window.firestoreDb) {
       window.firestoreDb.collection("scores").doc(groupId).set({
         group_id: groupId,
+        step1_score: s1,
+        step2_score: s2,
+        step3_score: s3,
+        step4_score: s4,
+        step5_score: s5,
         innovation,
         feasibility,
         solution,
         presentation,
-        total: innovation + feasibility + solution + presentation,
+        total,
         remarks,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true }).catch(() => {});
     }
 
-    showToast(`Score updated! Total: ${data.score.total}/50`, "success");
+    showToast(`Step marks updated! Total: ${data.score.total}/50`, "success");
   } catch (err) {
     showToast(err.message, "error");
   } finally {
     submitBtn.disabled = false;
-    submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save Score`;
+    submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save Step Marks`;
   }
 }
 
@@ -2979,11 +3542,12 @@ async function loadLeaderboard(showToastNotice = false) {
       snapshot.forEach(doc => {
         const g = doc.data();
         const s = g.score || null;
-        const innov = s ? (s.innovation || 0) : 0;
-        const feas = s ? (s.feasibility || 0) : 0;
-        const sol = s ? (s.solution || 0) : 0;
-        const pres = s ? (s.presentation || 0) : 0;
-        const total = s ? (s.total || (innov + feas + sol + pres)) : 0;
+        const s1 = s ? (s.step1_score !== undefined ? s.step1_score : (s.innovation ? Math.round(s.innovation * 10 / 15) : 0)) : (g.step1_score || 0);
+        const s2 = s ? (s.step2_score !== undefined ? s.step2_score : (s.feasibility || 0)) : (g.step2_score || 0);
+        const s3 = s ? (s.step3_score !== undefined ? s.step3_score : (s.solution ? Math.round(s.solution * 10 / 15) : 0)) : (g.step3_score || 0);
+        const s4 = s ? (s.step4_score !== undefined ? s.step4_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step4_score || 0);
+        const s5 = s ? (s.step5_score !== undefined ? s.step5_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step5_score || 0);
+        const total = s ? (s.total || (s1 + s2 + s3 + s4 + s5)) : 0;
 
         leaderboard.push({
           id: doc.id,
@@ -2994,10 +3558,11 @@ async function loadLeaderboard(showToastNotice = false) {
           batch: g.batch,
           members: g.member_names || [],
           is_marked: (s !== null && s !== undefined),
-          innovation: innov,
-          feasibility: feas,
-          solution_score: sol,
-          presentation: pres,
+          step1_score: s1,
+          step2_score: s2,
+          step3_score: s3,
+          step4_score: s4,
+          step5_score: s5,
           total: total,
           remarks: s ? s.remarks || "" : "",
           step1_problem_statement: g.step1_problem_statement || "",
@@ -3011,8 +3576,8 @@ async function loadLeaderboard(showToastNotice = false) {
       leaderboard.sort((a, b) => {
         if (a.is_marked !== b.is_marked) return b.is_marked ? 1 : -1;
         if (a.total !== b.total) return b.total - a.total;
-        if (a.innovation !== b.innovation) return b.innovation - a.innovation;
-        return b.solution_score - a.solution_score;
+        if (a.step1_score !== b.step1_score) return b.step1_score - a.step1_score;
+        return b.step3_score - a.step3_score;
       });
 
       const ranked = leaderboard.map((item, idx) => ({ ...item, rank: idx + 1 }));
@@ -3107,7 +3672,7 @@ function renderLeaderboard(list, bestProject) {
   if (!list || list.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="11" class="text-center" style="padding: 2rem; color: var(--text-muted);">
+        <td colspan="12" class="text-center" style="padding: 2rem; color: var(--text-muted);">
           No groups registered in this department / batch filter.
         </td>
       </tr>
@@ -3122,6 +3687,12 @@ function renderLeaderboard(list, bestProject) {
     else if (item.rank === 3) rankBadgeClass += " rank-3";
 
     const itemHasBatch = item.department !== "ECS" && item.batch && item.batch !== "—";
+
+    const s1 = item.step1_score !== undefined ? item.step1_score : (item.innovation ? Math.round(item.innovation * 10 / 15) : '—');
+    const s2 = item.step2_score !== undefined ? item.step2_score : (item.feasibility !== undefined ? item.feasibility : '—');
+    const s3 = item.step3_score !== undefined ? item.step3_score : (item.solution_score ? Math.round(item.solution_score * 10 / 15) : '—');
+    const s4 = item.step4_score !== undefined ? item.step4_score : (item.presentation !== undefined ? Math.round(item.presentation / 2) : '—');
+    const s5 = item.step5_score !== undefined ? item.step5_score : (item.presentation !== undefined ? Math.round(item.presentation / 2) : '—');
 
     return `
       <tr>
@@ -3140,10 +3711,11 @@ function renderLeaderboard(list, bestProject) {
         <td>
           <small style="color: var(--text-secondary);">${(item.members || []).join(", ") || "—"}</small>
         </td>
-        <td class="text-center cell-score-num">${item.is_marked ? item.innovation : '—'}</td>
-        <td class="text-center cell-score-num">${item.is_marked ? item.feasibility : '—'}</td>
-        <td class="text-center cell-score-num">${item.is_marked ? item.solution_score : '—'}</td>
-        <td class="text-center cell-score-num">${item.is_marked ? item.presentation : '—'}</td>
+        <td class="text-center cell-score-num">${item.is_marked ? s1 : '—'}</td>
+        <td class="text-center cell-score-num">${item.is_marked ? s2 : '—'}</td>
+        <td class="text-center cell-score-num">${item.is_marked ? s3 : '—'}</td>
+        <td class="text-center cell-score-num">${item.is_marked ? s4 : '—'}</td>
+        <td class="text-center cell-score-num">${item.is_marked ? s5 : '—'}</td>
         <td class="text-center">
           <span class="total-score-pill">${item.is_marked ? item.total : 0}</span>
         </td>

@@ -144,15 +144,14 @@
                   <label for="stuRegClass">Class *</label>
                   <select id="stuRegClass" required>
                     <option value="Third Year">Third Year (TE)</option>
-                    <option value="Final Year">Final Year (BE)</option>
                   </select>
                 </div>
               </div>
 
               <div class="form-row-2">
-                <div class="form-group">
+                <div class="form-group" id="stuRegDivGroup">
                   <label for="stuRegDiv">Division *</label>
-                  <select id="stuRegDiv" required>
+                  <select id="stuRegDiv">
                     <option value="Div A">Division A</option>
                     <option value="Div B">Division B</option>
                   </select>
@@ -161,10 +160,8 @@
                 <div class="form-group" id="stuRegBatchGroup" style="display: none;">
                   <label for="stuRegBatch">Assigned Lab Batch *</label>
                   <select id="stuRegBatch">
-                    <option value="Batch 1">Batch 1</option>
-                    <option value="Batch 2">Batch 2</option>
-                    <option value="Batch 3">Batch 3</option>
-                    <option value="Batch 4">Batch 4</option>
+                    <option value="Batch 1">Batch 1 (B1)</option>
+                    <option value="Batch 2">Batch 2 (B2)</option>
                   </select>
                 </div>
               </div>
@@ -280,15 +277,14 @@
                     <label for="newGroupClass">Class *</label>
                     <select id="newGroupClass" required>
                       <option value="Third Year">Third Year (TE)</option>
-                      <option value="Final Year">Final Year (BE)</option>
                     </select>
                   </div>
                 </div>
 
                 <div class="form-row-2">
-                  <div class="form-group">
+                  <div class="form-group" id="newGroupDivGroup">
                     <label for="newGroupDiv">Division *</label>
-                    <select id="newGroupDiv" required>
+                    <select id="newGroupDiv">
                       <option value="Div A">Division A</option>
                       <option value="Div B">Division B</option>
                     </select>
@@ -297,10 +293,8 @@
                   <div class="form-group" id="newGroupBatchGroup" style="display: none;">
                     <label for="newGroupBatch">Batch *</label>
                     <select id="newGroupBatch">
-                      <option value="Batch 1">Batch 1</option>
-                      <option value="Batch 2">Batch 2</option>
-                      <option value="Batch 3">Batch 3</option>
-                      <option value="Batch 4">Batch 4</option>
+                      <option value="Batch 1">Batch 1 (B1)</option>
+                      <option value="Batch 2">Batch 2 (B2)</option>
                     </select>
                   </div>
                 </div>
@@ -918,11 +912,64 @@
                 <button type="submit" class="btn btn-primary" id="saveEmployabilityBtn">
                   <i class="fa-solid fa-floppy-disk"></i> Save Analytics &amp; Roles
                 </button>
-                <button type="button" class="btn btn-outline" onclick="exportVentureDossier()" style="background-color: var(--bg-card); font-weight: 800; border-color: #7c3aed; color: #7c3aed;">
-                  <i class="fa-solid fa-file-pdf"></i> Export Placement-Ready Venture Dossier
-                </button>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-outline" onclick="exportProductPerformanceReport()" style="background-color: var(--bg-card); font-weight: 800; border-color: #10b981; color: #10b981;">
+                    <i class="fa-solid fa-chart-line"></i> Performance &amp; Growth Report
+                  </button>
+                  <button type="button" class="btn btn-outline" onclick="exportVentureDossier()" style="background-color: var(--bg-card); font-weight: 800; border-color: #7c3aed; color: #7c3aed;">
+                    <i class="fa-solid fa-file-pdf"></i> Placement Venture Dossier
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+
+          <!-- Component 6: Live Customer Reviews & Star Ratings -->
+          <div class="card" id="studentCustomerReviewsCard" style="margin-top: 1.5rem; border-left: 4px solid #f59e0b;">
+            <div class="card-header-flex">
+              <div>
+                <span class="role-tag" style="background-color: #fef3c7; color: #b45309;">
+                  <i class="fa-solid fa-star"></i> Customer Feedback &amp; Product Ratings
+                </span>
+                <h3 style="font-weight: 800; margin-top: 0.35rem;">Customer Reviews for Your Venture</h3>
+                <p class="section-desc">Live ratings and testimonials left by external customers who viewed and tested your marketing campaign.</p>
+              </div>
+              <div id="reviewsSummaryBadge" style="font-size: 1.1rem; font-weight: 800; color: #b45309; display: flex; align-items: center; gap: 0.35rem;">
+                <span id="avgRatingDisplay">5.0</span> <i class="fa-solid fa-star" style="color: #f59e0b;"></i> <small style="font-size: 0.8rem; color: var(--text-muted);">(<span id="reviewCountDisplay">0</span> reviews)</small>
+              </div>
+            </div>
+
+            <!-- Add Review directly from Dashboard / Pilot Testers -->
+            <div style="margin-top: 1rem; background: var(--bg-secondary); border-radius: 8px; padding: 1rem;">
+              <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem;"><i class="fa-solid fa-plus-circle"></i> Log Pilot Customer Review / Testimonial</h4>
+              <form id="pilotCustomerReviewForm" onsubmit="handleLogPilotReview(event)" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="form-row-2">
+                  <div>
+                    <label style="font-size: 0.8rem;">Customer / Evaluator Name</label>
+                    <input type="text" id="pilotCustName" required placeholder="e.g. Rahul Sharma (Retail Beta User)">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.8rem;">Rating (1 to 5 Stars)</label>
+                    <select id="pilotCustRating" required>
+                      <option value="5">★★★★★ (5 Stars - Outstanding)</option>
+                      <option value="4">★★★★☆ (4 Stars - Highly Feasible)</option>
+                      <option value="3">★★★☆☆ (3 Stars - Good Prototype)</option>
+                      <option value="2">★★☆☆☆ (2 Stars - Needs Improvement)</option>
+                      <option value="1">★☆☆☆☆ (1 Star - Critical Gaps)</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size: 0.8rem;">Customer Review &amp; Feedback</label>
+                  <textarea id="pilotCustComment" required rows="2" placeholder="Customer impressions, prototype ease-of-use, value proposition feedback..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" style="align-self: flex-start;">
+                  <i class="fa-solid fa-check"></i> Record Customer Review
+                </button>
+              </form>
+            </div>
+
+            <div id="studentReviewsListContainer" style="margin-top: 1.25rem;"></div>
           </div>
       </section>
 
@@ -959,8 +1006,7 @@
               <label for="filterClass">Class:</label>
               <select id="filterClass" onchange="loadAdminGroups()">
                 <option value="All">All Classes</option>
-                <option value="Third Year">Third Year</option>
-                <option value="Final Year">Final Year</option>
+                <option value="Third Year" selected>Third Year (TE)</option>
               </select>
             </div>
 
@@ -977,38 +1023,40 @@
               <label for="filterBatch">Batch:</label>
               <select id="filterBatch" onchange="loadAdminGroups()">
                 <option value="All">All Batches</option>
-                <option value="Batch 1">Batch 1</option>
-                <option value="Batch 2">Batch 2</option>
-                <option value="Batch 3">Batch 3</option>
-                <option value="Batch 4">Batch 4</option>
+                <option value="Batch 1">Batch 1 (B1)</option>
+                <option value="Batch 2">Batch 2 (B2)</option>
               </select>
             </div>
 
             <div class="filter-item search-item">
               <div class="search-box">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="groupSearchInput" placeholder="Search project or leader..." oninput="handleGroupSearch()">
+                <input type="text" id="groupSearchInput" placeholder="Search project, group ID, or leader..." oninput="handleGroupSearch()">
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 50-Point Rubric Bar -->
+        <!-- 50-Point Rubric Bar (5 Steps x 10 Pts) -->
         <div class="rubric-explainer">
           <div class="rubric-item">
-            <span class="rubric-name">Innovation</span>
-            <span class="rubric-max">Max 15 Pts</span>
-          </div>
-          <div class="rubric-item">
-            <span class="rubric-name">Feasibility</span>
+            <span class="rubric-name">Step 1: Need</span>
             <span class="rubric-max">Max 10 Pts</span>
           </div>
           <div class="rubric-item">
-            <span class="rubric-name">Solution</span>
-            <span class="rubric-max">Max 15 Pts</span>
+            <span class="rubric-name">Step 2: Market</span>
+            <span class="rubric-max">Max 10 Pts</span>
           </div>
           <div class="rubric-item">
-            <span class="rubric-name">Presentation</span>
+            <span class="rubric-name">Step 3: Solution</span>
+            <span class="rubric-max">Max 10 Pts</span>
+          </div>
+          <div class="rubric-item">
+            <span class="rubric-name">Step 4: Business</span>
+            <span class="rubric-max">Max 10 Pts</span>
+          </div>
+          <div class="rubric-item">
+            <span class="rubric-name">Step 5: Marketing</span>
             <span class="rubric-max">Max 10 Pts</span>
           </div>
           <div class="rubric-item total-item">
@@ -1042,8 +1090,6 @@
               <option value="All">All Batches</option>
               <option value="Batch 1">Batch 1</option>
               <option value="Batch 2">Batch 2</option>
-              <option value="Batch 3">Batch 3</option>
-              <option value="Batch 4">Batch 4</option>
             </select>
           </div>
         </div>
@@ -1062,10 +1108,11 @@
                   <th>Dept &amp; Class</th>
                   <th>Div &amp; Batch</th>
                   <th>Members</th>
-                  <th class="text-center" title="Max 15">Innovation<br><small>(/15)</small></th>
-                  <th class="text-center" title="Max 10">Feasibility<br><small>(/10)</small></th>
-                  <th class="text-center" title="Max 15">Solution<br><small>(/15)</small></th>
-                  <th class="text-center" title="Max 10">Presentation<br><small>(/10)</small></th>
+                  <th class="text-center" title="Step 1: 10 Pts">Step 1<br><small>(/10)</small></th>
+                  <th class="text-center" title="Step 2: 10 Pts">Step 2<br><small>(/10)</small></th>
+                  <th class="text-center" title="Step 3: 10 Pts">Step 3<br><small>(/10)</small></th>
+                  <th class="text-center" title="Step 4: 10 Pts">Step 4<br><small>(/10)</small></th>
+                  <th class="text-center" title="Step 5: 10 Pts">Step 5<br><small>(/10)</small></th>
                   <th class="text-center">Total Score<br><small>(/50)</small></th>
                   <th>Status</th>
                 </tr>
@@ -1118,6 +1165,25 @@
         </div>
       </div>
     </div>
+
+    <!-- Certificate Modal -->
+    <div id="certificateModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card certificate-modal-card" style="max-width: 900px; width: 95%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0;"><i class="fa-solid fa-award" style="color: #f59e0b;"></i> Official Capstone Course Certificate</h3>
+          <button type="button" class="btn-icon" onclick="closeCertificateModal()" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div id="certificateContainer" class="certificate-preview-scroll"></div>
+        <div class="modal-actions" style="margin-top: 1rem; justify-content: space-between;">
+          <button type="button" class="btn btn-outline" onclick="closeCertificateModal()">Close Preview</button>
+          <button type="button" class="btn btn-primary" onclick="printOfficialCertificate()">
+            <i class="fa-solid fa-print"></i> Print / Download Verified Certificate
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Firebase SDKs (v10 compat) -->
@@ -1125,6 +1191,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="./firebase-config.js?v=3"></script>
-  <script src="./app.js?v=16"></script>
+  <script src="./app.js?v=17"></script>
 </body>
 </html>

@@ -160,10 +160,15 @@ def seed():
                 member_user_ids_json=json.dumps([s1.id]),
                 created_by=s1.id,
                 step1_problem_statement="High power surge penalties during noon delivery vehicle charging peaks.",
+                step1_status="approved",
                 step2_market_research="Surveyed 18 campus food vendors; 80% reported late turnaround times.",
+                step2_status="approved",
                 step3_innovative_solution="Dynamic telemetry-controlled automated battery swap hub.",
+                step3_status="approved",
                 step4_feasibility_business_model="Initial Capex $2,400 with 11-month subscription breakeven.",
-                step5_marketing_presentation="Direct B2B partner pitches and interactive route simulator."
+                step4_status="approved",
+                step5_marketing_presentation="Direct B2B partner pitches and interactive route simulator.",
+                step5_status="approved"
             )
             db.add(g1)
             score1 = Score(
