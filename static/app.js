@@ -858,19 +858,30 @@ async function handleLogin(e) {
 }
 
 async function handleStudentRegister(e) {
-  e.preventDefault();
-  const name = document.getElementById("stuRegName").value.trim();
-  const email = document.getElementById("stuRegEmail").value.trim().toLowerCase();
-  const department = document.getElementById("stuRegDept").value;
-  const student_class = document.getElementById("stuRegClass").value;
-  const division = department === "Instrumentation" ? "—" : (document.getElementById("stuRegDiv") ? document.getElementById("stuRegDiv").value : "—");
-  const rawBatch = document.getElementById("stuRegBatch") ? document.getElementById("stuRegBatch").value : "—";
+  if (e && e.preventDefault) e.preventDefault();
+  const submitBtn = document.getElementById("studentRegisterSubmitBtn");
+  const name = document.getElementById("stuRegName") ? document.getElementById("stuRegName").value.trim() : "";
+  const email = document.getElementById("stuRegEmail") ? document.getElementById("stuRegEmail").value.trim().toLowerCase() : "";
+  const department = document.getElementById("stuRegDept") ? document.getElementById("stuRegDept").value : "ECS";
+  const student_class = document.getElementById("stuRegClass") ? document.getElementById("stuRegClass").value : "Third Year";
+  const division = department === "Instrumentation" ? "—" : (document.getElementById("stuRegDiv") ? document.getElementById("stuRegDiv").value : "Div A");
+  const rawBatch = document.getElementById("stuRegBatch") ? document.getElementById("stuRegBatch").value : "Batch 1";
   const batch = department === "ECS" ? "—" : rawBatch;
-  const password = document.getElementById("stuRegPassword").value;
+  const password = document.getElementById("stuRegPassword") ? document.getElementById("stuRegPassword").value : "";
+
+  if (!name || !email || !password) {
+    showToast("Please fill in your full name, college email, and password.", "error");
+    return;
+  }
 
   try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Registering Account...`;
+    }
+
     if (IS_PURE_FIREBASE) {
-      if (!window.firebaseAuth) throw new Error("Firebase Auth is unavailable.");
+      if (!window.firebaseAuth) throw new Error("Firebase Auth service is unavailable. Please check your internet connection.");
 
       let fbUser = null;
       try {
@@ -878,10 +889,18 @@ async function handleStudentRegister(e) {
         fbUser = cred.user;
       } catch (fbErr) {
         if (fbErr.code === "auth/email-already-in-use") {
-          const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
-          fbUser = cred.user;
+          try {
+            const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+            fbUser = cred.user;
+          } catch (signInErr) {
+            throw new Error("This email is already registered. If it is yours, please sign in with your password from the login screen.");
+          }
+        } else if (fbErr.code === "auth/weak-password") {
+          throw new Error("Password must be at least 6 characters long.");
+        } else if (fbErr.code === "auth/invalid-email") {
+          throw new Error("Please enter a valid college email address.");
         } else {
-          throw new Error(fbErr.message || "Registration failed");
+          throw new Error(fbErr.message || "Student registration failed.");
         }
       }
 
@@ -949,11 +968,17 @@ async function handleStudentRegister(e) {
     loadInitialData();
   } catch (err) {
     showToast(err.message, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-user-plus"></i> Register as Student / Leader`;
+    }
   }
 }
 
 async function handleFacultyRegister(e) {
-  e.preventDefault();
+  if (e && e.preventDefault) e.preventDefault();
+  const submitBtn = document.getElementById("facultyRegisterSubmitBtn");
   const name = document.getElementById("facRegName").value.trim();
   const email = document.getElementById("facRegEmail").value.trim().toLowerCase();
   const password = document.getElementById("facRegPassword").value;
@@ -968,7 +993,7 @@ async function handleFacultyRegister(e) {
   rows.forEach(r => {
     const department = r.querySelector(".f-dept").value;
     const student_class = r.querySelector(".f-class").value;
-    const division = r.querySelector(".f-div").value;
+    const division = r.querySelector(".f-div") ? r.querySelector(".f-div").value : "Div A";
 
     if (department === "ECS") {
       // ECS has no batches: assign whole division
@@ -977,6 +1002,9 @@ async function handleFacultyRegister(e) {
       const checkedBatches = Array.from(r.querySelectorAll(".batch-checkboxes input:checked")).map(cb => cb.value);
       if (checkedBatches.length > 0) {
         assignments.push({ department, student_class, division, batches: checkedBatches });
+      } else {
+        // Fallback default batch for Instrumentation if not explicitly checked
+        assignments.push({ department, student_class, division: "—", batches: ["Batch 1", "Batch 2"] });
       }
     }
   });
@@ -987,8 +1015,13 @@ async function handleFacultyRegister(e) {
   }
 
   try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Registering Faculty...`;
+    }
+
     if (IS_PURE_FIREBASE) {
-      if (!window.firebaseAuth) throw new Error("Firebase Auth is unavailable.");
+      if (!window.firebaseAuth) throw new Error("Firebase Auth service is unavailable. Please check your internet connection.");
 
       let fbUser = null;
       try {
@@ -996,8 +1029,14 @@ async function handleFacultyRegister(e) {
         fbUser = cred.user;
       } catch (fbErr) {
         if (fbErr.code === "auth/email-already-in-use") {
-          const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
-          fbUser = cred.user;
+          try {
+            const cred = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+            fbUser = cred.user;
+          } catch (signInErr) {
+            throw new Error("This email is already registered. Please sign in with your password from the login screen.");
+          }
+        } else if (fbErr.code === "auth/weak-password") {
+          throw new Error("Password must be at least 6 characters long.");
         } else {
           throw new Error(fbErr.message || "Faculty registration failed");
         }
@@ -1061,6 +1100,11 @@ async function handleFacultyRegister(e) {
     loadInitialData();
   } catch (err) {
     showToast(err.message, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-chalkboard-user"></i> Register Faculty Account`;
+    }
   }
 }
 
@@ -4095,10 +4139,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Handle student registration department change initially
-  const stuDept = document.getElementById("stuRegDept");
-  if (stuDept) {
-    stuDept.addEventListener("change", handleStudentDeptChange);
+  // Bind registration forms explicitly
+  const stuForm = document.getElementById("studentRegisterForm");
+  if (stuForm) {
+    stuForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      handleStudentRegister(e);
+    });
+  }
+
+  const facForm = document.getElementById("facultyRegisterForm");
+  if (facForm) {
+    facForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      handleFacultyRegister(e);
+    });
   }
 
   checkAuth();
