@@ -1,63 +1,81 @@
-# E&DM Group Project Manager
+# E&DM Group Project Manager (100% Serverless Firebase Edition)
 
-A tailored full-stack web application designed for **Entrepreneurship & Digital Marketing (E&DM)** supporting two departments: **ECS (Electronics & Computer Science)** and **Instrumentation Engineering**.
+A high-performance web application designed for **Entrepreneurship & Digital Marketing (E&DM)** supporting two departments: **ECS (Electronics & Computer Science)** and **Instrumentation Engineering**.
 
----
+The application runs **100% serverless on the Free Firebase Spark Plan** utilizing:
+- **Firebase Hosting**: High-speed CDN for static assets
+- **Firebase Authentication**: Seamless email & password authentication with auto-provisioning
+- **Cloud Firestore**: Real-time NoSQL database with live sync, collections for groups, users, and customer reviews.
 
-## 🏛️ Academic Structure & Roles
-
-### 1. Two Departments & Divisions
-- **ECS (Electronics & Computer Science)**: Includes **Division A** and **Division B**.
-- **Instrumentation Engineering**: Standard cohort.
-
-### 2. Two Dedicated Faculty Accounts
-- **Faculty 1 (ECS)**: `faculty.ecs@college.edu` / `faculty123`
-- **Faculty 2 (Instrumentation)**: `faculty.inst@college.edu` / `faculty123`
-- *Faculty can filter groups by Department (ECS / Instrumentation) and Division (Div A / Div B), and inspect the complete narrative of every milestone step for every team.*
-
-### 3. Student Registration & Group Leader Flow
-- When a student registers, they select their **Department** and **Division**.
-- **Leader Registration**: The student who creates the group is automatically recorded as the **Group Leader** with an indicator badge.
-- **Teammate Enrollment**: Teammates can join the leader's group using a unique 6-character Invite Code (e.g. `ECSA01`).
-- **Student Dashboard ("My Project Dashboard")**:
-  The Group Leader and enrolled teammates can collaboratively draft, review, and save all **5 sequential project steps**. Changes sync in real-time across teammates and faculty.
+**Live Production URL**: [https://entreprenuership-software.web.app](https://entreprenuership-software.web.app)
 
 ---
 
-## 📑 The 5-Step Entrepreneurial Project Workflow
+## 🏛️ Academic Structure & Department Allocation
 
-| Step # | Milestone Phase | Rubric Criteria | Max Marks |
-| :---: | :--- | :--- | :---: |
-| **Step 1** | **Problem Statement & Market Need** | Innovation | 15 Pts |
-| **Step 2** | **Market Research & Customer Validation** | Feasibility + Innovation | 10 Pts |
-| **Step 3** | **Innovative Solution & Technical Prototype** | Solution | 15 Pts |
-| **Step 4** | **Feasibility Study, Unit Economics & Business Model** | Feasibility | 10 Pts |
-| **Step 5** | **Digital Marketing, Go-To-Market & Pitch Presentation** | Presentation | 10 Pts |
-| **Total** | **Comprehensive Course Score** | **Clamped & Validated** | **50 Pts** |
+1. **ECS (Electronics & Computer Science)**:
+   - Cohort: **Third Year (TE)**
+   - Divisions: **Division A** and **Division B**
+   - Batches: None (`—`)
 
----
+2. **Instrumentation Engineering**:
+   - Cohort: **Third Year (TE)**
+   - Batches: **Batch 1 (B1)** and **Batch 2 (B2)**
+   - Divisions: None (`—`)
 
-## 🔒 Per-Step Verification & Progression Gating
-- **Faculty Per-Step Review**: In the Faculty Evaluation Dashboard, instructors can review each step submission independently and mark it as **Approved** or **Request Changes** with customized feedback remarks.
-- **Strict Step Gating**: Students can only advance and submit **Step N** once **Step N-1** has been marked and **Approved** by the faculty.
-- **Locked Indicators**: Step cards dynamically display lock badges and clear explanations when waiting on faculty verification.
+3. **Faculty Universal Access**:
+   - All faculty accounts have full access to inspect, verify, score, and generate certificates for all groups across both departments and all divisions.
 
 ---
 
-## 💰 ₹1,00,000 Budget Planner
-- **Budgetary Cap**: A strict ₹1,00,000 allocation tool enables student teams to manage prototyping, hardware, software/cloud, testing, and digital marketing expenses.
-- **Interactive Planner**: Features a visual utilization bar, category breakdown, cost per item, and remaining balance counter with server-side validation.
+## 🔑 Demo & Known Accounts
+
+| Name | Role | Department / Allocation | Email | Default Password |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sumant Deshmukh** | Faculty | Multi-Department (ECS & Inst) | `sumantdeshmukh.in@gmail.com` | *Any password (auto-provisions)* |
+| **Abhishek** | Faculty | Multi-Department (ECS & Inst) | `sumantdeshmukh39@gmail.com` | *Any password (auto-provisions)* |
+| **Ninad** | Faculty | Multi-Department (ECS & Inst) | `sumant9.cyber@gmail.com` | *Any password (auto-provisions)* |
+| **Dr. Rajesh Raman** | Faculty | Multi-Department (ECS & Inst) | `faculty.rajesh@college.edu` | `faculty123` |
+| **Prof. Ananya Sen** | Faculty | Multi-Department (ECS & Inst) | `faculty.ananya@college.edu` | `faculty123` |
+| **Sumant Sanjay Deshmukh** | Student Leader | ECS Div A | `sd397388@gmail.com` | *Any password (auto-provisions)* |
+| **Aarav Patel** | Student Leader | ECS Div A | `aarav.b1@college.edu` | `student123` |
+| **Rohit Verma** | Student Leader | ECS Div A | `rohit.b3@college.edu` | `student123` |
+| **Priya Nair** | Student Leader | Instrumentation Batch 1 | `priya.inst1@college.edu` | `student123` |
+| **Siddharth Rao** | Student Leader | Instrumentation Batch 2 | `siddharth.inst2@college.edu` | `student123` |
 
 ---
 
-## 🎙️ High-Impact Pitching Strategy Framework
-- **Structured Pitch Deck**: Built directly into the student dashboard covering:
-  1. The 10-second Hook & Tagline
-  2. Urgent Customer Pain Point
-  3. Solution USP & Technical Moat
-  4. Target Market (TAM/SAM) & Beachhead Customer
-  5. Business Model & Monetization Channels
-  6. The Ask & ₹1 Lakh Milestone Allocation
+## 📑 Core Capabilities
+
+1. **Sequential 5-Step Milestone Workflow**:
+   - Step 1: Problem Statement & Needs Assessment (10 Pts)
+   - Step 2: Market Research & Customer Validation (10 Pts)
+   - Step 3: Innovative Solution Architecture (10 Pts)
+   - Step 4: Feasibility & Commercial Viability (10 Pts)
+   - Step 5: Marketing & Go-to-Market Deck (10 Pts)
+   - Total Course Score: 50 Pts
+
+2. **Per-Step Faculty Scoring**:
+   - Faculty can enter individual scores for Steps 1–5 (0–10 each).
+   - Real-time total calculation out of 50.
+
+3. **Customer Reviews & Ratings**:
+   - Public product showcase link allows customers/pilots to submit 1–5 star ratings and reviews.
+   - Student dashboard includes live customer reviews and rating analytics.
+
+4. **Product Performance & Growth Potential Report**:
+   - Printable executive report displaying project overview, reviews, reach metrics, and Growth Potential Index (0–100%).
+
+5. **Official Capstone Certificate Generation**:
+   - Faculty can generate verified, print-ready certificates for individual team members with gold seals and signature lines.
+
+---
+
+## 🚀 Deployment
+
+```bash
+firebase deploy --only hosting,firestore:rules
+```
   7. Slide Deck / Video Demo link (Canva, Google Slides, Loom, YouTube)
 
 ---

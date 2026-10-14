@@ -13,10 +13,8 @@ let myGroupFirestoreUnsub = null;
 let adminGroupsFirestoreUnsub = null;
 
 const API_BASE = window.location.origin;
-const IS_PURE_FIREBASE = window.location.hostname.includes("web.app") || 
-                         window.location.hostname.includes("firebaseapp.com") || 
-                         window.location.protocol === "file:" ||
-                         (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" && !window.location.port);
+// Strictly Entirely Firebase only (Serverless Architecture via Firebase Auth & Cloud Firestore)
+const IS_PURE_FIREBASE = true;
 
 // Toast Notifications
 function showToast(message, type = "info") {
@@ -619,6 +617,78 @@ const SEED_ACCOUNTS = {
     division: "Div A",
     batch: "Batch 4",
     assignments: []
+  },
+  "faculty.rajesh@college.edu": {
+    id: "fac-rajesh-raman",
+    email: "faculty.rajesh@college.edu",
+    name: "Dr. Rajesh Raman",
+    role: "faculty",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 1",
+    assignments: [
+      { department: "ECS", student_class: "Third Year", division: "Div A", batches: ["Batch 1", "Batch 2"] },
+      { department: "Instrumentation", student_class: "Third Year", division: "Div A", batches: ["Batch 1"] }
+    ]
+  },
+  "faculty.ananya@college.edu": {
+    id: "fac-ananya-sen",
+    email: "faculty.ananya@college.edu",
+    name: "Prof. Ananya Sen",
+    role: "faculty",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "Batch 2",
+    assignments: [
+      { department: "ECS", student_class: "Third Year", division: "Div A", batches: ["Batch 3", "Batch 4"] },
+      { department: "Instrumentation", student_class: "Third Year", division: "Div A", batches: ["Batch 2"] }
+    ]
+  },
+  "aarav.b1@college.edu": {
+    id: "stu-aarav-patel",
+    email: "aarav.b1@college.edu",
+    name: "Aarav Patel",
+    role: "student",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "—",
+    assignments: []
+  },
+  "rohit.b3@college.edu": {
+    id: "stu-rohit-verma",
+    email: "rohit.b3@college.edu",
+    name: "Rohit Verma",
+    role: "student",
+    department: "ECS",
+    student_class: "Third Year",
+    division: "Div A",
+    batch: "—",
+    assignments: []
+  },
+  "priya.inst1@college.edu": {
+    id: "stu-priya-nair",
+    email: "priya.inst1@college.edu",
+    name: "Priya Nair",
+    role: "student",
+    department: "Instrumentation",
+    student_class: "Third Year",
+    division: "—",
+    batch: "Batch 1",
+    assignments: []
+  },
+  "siddharth.inst2@college.edu": {
+    id: "stu-siddharth-rao",
+    email: "siddharth.inst2@college.edu",
+    name: "Siddharth Rao",
+    role: "student",
+    department: "Instrumentation",
+    student_class: "Third Year",
+    division: "—",
+    batch: "Batch 2",
+    assignments: []
   }
 };
 
@@ -1138,9 +1208,29 @@ async function loadMyGroup() {
         if (!q1.empty) {
           groupDoc = q1.docs[0];
         } else {
-          // Fallback: check created_by
+          // Fallback 1: check created_by
           const q2 = await window.firestoreDb.collection("groups").where("created_by", "==", currentUser.id).limit(1).get();
-          if (!q2.empty) groupDoc = q2.docs[0];
+          if (!q2.empty) {
+            groupDoc = q2.docs[0];
+          } else {
+            // Fallback 2: Check by user's full name in member_names array across existing groups
+            const allSnap = await window.firestoreDb.collection("groups").get();
+            const myNameLower = (currentUser.name || "").trim().toLowerCase();
+            allSnap.forEach(doc => {
+              if (groupDoc) return;
+              const gData = doc.data();
+              const mNames = (gData.member_names || []).map(m => m.trim().toLowerCase());
+              if (mNames.includes(myNameLower)) {
+                groupDoc = doc;
+                // Auto-link user's UID to member_user_ids for future instant lookups
+                const curMemberIds = gData.member_user_ids || [];
+                if (!curMemberIds.includes(currentUser.id)) {
+                  curMemberIds.push(currentUser.id);
+                  doc.ref.update({ member_user_ids: curMemberIds }).catch(() => {});
+                }
+              }
+            });
+          }
         }
       } catch (e) {
         console.warn("Firestore find group notice:", e);
@@ -2598,14 +2688,14 @@ async function handleCreateGroup(e) {
         const memberNames = (g.member_names || []).map(m => m.toLowerCase());
         
         if (memberIds.includes(currentUser.id)) {
-          throw new Error("You are already enrolled in a group.");
+          throw new Error("You are already in a group.");
         }
         for (const m of member_names) {
           if (memberNames.includes(m.toLowerCase())) {
             if (m.toLowerCase() === currentUser.name.toLowerCase()) {
-              throw new Error("You are already enrolled in a group.");
+              throw new Error("You are already in a group.");
             } else {
-              throw new Error(`Member "${m}" is already enrolled in another group (${g.name}).`);
+              throw new Error(`Member "${m}" is already in a group (${g.name}).`);
             }
           }
         }
