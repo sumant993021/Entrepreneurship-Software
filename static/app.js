@@ -11,6 +11,8 @@ let regRole = "student"; // 'student' or 'faculty'
 // Firebase real-time listener un-subscribers
 let myGroupFirestoreUnsub = null;
 let adminGroupsFirestoreUnsub = null;
+let leaderboardFirestoreUnsub = null;
+let adminUsersFirestoreUnsub = null;
 
 const API_BASE = window.location.origin;
 // Strictly Entirely Firebase only (Serverless Architecture via Firebase Auth & Cloud Firestore)
@@ -37,16 +39,15 @@ function showToast(message, type = "info") {
 
 // WebSocket Setup (Optional notification channel when FastAPI is used; fallback cleanly on pure Firebase)
 function setupWebSocket() {
-  if (socket) return;
-  // If running on firebase hosting or without WS support, Firebase Firestore handles 100% of live events
-  if (window.location.hostname.includes("firebaseapp.com") || window.location.hostname.includes("web.app") || window.location.hostname.includes("vercel.app")) {
-    const indicator = document.getElementById("liveIndicator");
+  const indicator = document.getElementById("liveIndicator");
+  if (IS_PURE_FIREBASE) {
     if (indicator) {
       indicator.style.display = "flex";
-      indicator.title = "Real-Time Cloud Firestore Sync Active";
+      indicator.title = "Real-Time Cloud Firestore Live Sync Active (100% Firebase)";
     }
     return;
   }
+  if (socket) return;
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -162,6 +163,24 @@ async function checkAuth() {
           } catch (e) {
             console.warn("Firestore user fetch error in checkAuth:", e);
           }
+        }
+
+        // Check if user is known faculty or seeded in SEED_ACCOUNTS
+        const userEmailLower = (fbUser.email || "").trim().toLowerCase();
+        const seedProfile = SEED_ACCOUNTS[userEmailLower];
+
+        if (!currentUser && seedProfile) {
+          currentUser = { ...seedProfile, id: fbUser.uid };
+          localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+          syncUserProfileToFirestore(currentUser);
+        } else if (currentUser && seedProfile && seedProfile.role === "faculty" && currentUser.role !== "faculty") {
+          // Self-heal: ensure faculty role and assignments are restored if demoted
+          currentUser.role = "faculty";
+          if (!currentUser.assignments || currentUser.assignments.length === 0) {
+            currentUser.assignments = seedProfile.assignments;
+          }
+          localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+          syncUserProfileToFirestore(currentUser);
         }
 
         if (!currentUser) {
@@ -722,10 +741,12 @@ async function handleLogin(e) {
             fbUser = newCred.user;
           } catch (createErr) {
             if (createErr.code === "auth/email-already-in-use") {
-              throw new Error("Incorrect password for this email account.");
+              throw new Error("Incorrect password for this email. If you registered previously, please re-enter your password or click quick login.");
             }
             throw new Error(createErr.message || "Failed to sign in via Firebase Auth.");
           }
+        } else if (fbErr.code === "auth/wrong-password") {
+          throw new Error("Incorrect password for this account. Please enter the password you used during registration or click quick login.");
         } else {
           throw new Error(fbErr.message || "Firebase login failed.");
         }
@@ -753,9 +774,10 @@ async function handleLogin(e) {
         }
       }
 
+      const seed = SEED_ACCOUNTS[email];
+
       // If user profile not yet in Firestore, seed from defaults or fallback
       if (!userProfile) {
-        const seed = SEED_ACCOUNTS[email];
         if (seed) {
           userProfile = { ...seed, id: fbUser.uid };
         } else {
@@ -771,6 +793,13 @@ async function handleLogin(e) {
             batch: "Batch 1",
             assignments: []
           };
+        }
+        syncUserProfileToFirestore(userProfile);
+      } else if (seed && seed.role === "faculty" && userProfile.role !== "faculty") {
+        // Guarantee faculty status and department allocations for known faculty
+        userProfile.role = "faculty";
+        if (!userProfile.assignments || userProfile.assignments.length === 0) {
+          userProfile.assignments = seed.assignments;
         }
         syncUserProfileToFirestore(userProfile);
       }
@@ -1184,6 +1213,14 @@ function logout() {
   if (adminGroupsFirestoreUnsub) {
     adminGroupsFirestoreUnsub();
     adminGroupsFirestoreUnsub = null;
+  }
+  if (leaderboardFirestoreUnsub) {
+    leaderboardFirestoreUnsub();
+    leaderboardFirestoreUnsub = null;
+  }
+  if (adminUsersFirestoreUnsub) {
+    adminUsersFirestoreUnsub();
+    adminUsersFirestoreUnsub = null;
   }
   authToken = null;
   currentUser = null;
@@ -2067,6 +2104,106 @@ function exportVentureDossier() {
   const mkt = g.digital_marketing || {};
   const emp = g.employability_portfolio || {};
   const pitch = g.pitch_strategy || {};
+
+  let rolesObj = {};
+  try {
+    rolesObj = typeof emp.team_roles_json === "string" ? JSON.parse(emp.team_roles_json || "{}") : (emp.team_roles_json || {});
+  } catch (e) {}
+
+  const printWin = window.open("", "_blank");
+  if (!printWin) {
+    showToast("Please allow popups to export your Venture Dossier.", "error");
+    return;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${escapeHtml(g.name)} - Entrepreneurship & Digital Marketing Dossier</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 2rem; color: #1e293b; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+        .dossier-header { border-bottom: 3px solid #4f46e5; padding-bottom: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-end; }
+        .dossier-title { font-size: 1.75rem; font-weight: 800; color: #0f172a; margin: 0; }
+        .dossier-meta { font-size: 0.9rem; color: #64748b; margin-top: 0.35rem; }
+        .section-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; background: #f8fafc; }
+        .section-box h3 { margin-top: 0; color: #4f46e5; font-size: 1.1rem; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.4rem; }
+        .tag-pill { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; margin-right: 0.4rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
+        th, td { border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: #e2e8f0; font-weight: 700; }
+        @media print { .no-print { display: none; } body { padding: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 1rem; text-align: right;">
+        <button onclick="window.print()" style="padding: 0.6rem 1.2rem; background: #4f46e5; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          Print / Save as Placement PDF
+        </button>
+      </div>
+
+      <div class="dossier-header">
+        <div>
+          <h1 class="dossier-title">${escapeHtml(g.name)}</h1>
+          <div class="dossier-meta">${escapeHtml(g.department)} • ${escapeHtml(g.student_class)} • ${escapeHtml(g.division)}${(g.department !== "ECS" && g.batch && g.batch !== "—") ? ` • ${escapeHtml(g.batch)}` : ''}</div>
+        </div>
+        <div style="text-align: right;">
+          <span class="tag-pill">E&amp;DM CAPSTONE DOSSIER</span>
+          <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">Group Leader: ${escapeHtml(g.creator_name)}</div>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <h3>1. Executive Placement Summary &amp; Elevator Pitch</h3>
+        <p><strong>Tagline:</strong> "${escapeHtml(pitch.hook_tagline || 'N/A')}"</p>
+        <p>${escapeHtml(emp.executive_summary || g.step1_problem_statement || 'Venture summary recorded.')}</p>
+      </div>
+
+      <div class="section-box">
+        <h3>2. 5-Step Sequential Milestone Validation</h3>
+        <p><strong>Step 1 (Problem &amp; Need):</strong> ${escapeHtml(g.step1_problem_statement || '—')}</p>
+        <p><strong>Step 2 (Market Validation):</strong> ${escapeHtml(g.step2_market_research || '—')}</p>
+        <p><strong>Step 3 (Technical Prototype):</strong> ${escapeHtml(g.step3_innovative_solution || '—')}</p>
+        <p><strong>Step 4 (Feasibility &amp; Economics):</strong> ${escapeHtml(g.step4_feasibility_business_model || '—')}</p>
+        <p><strong>Step 5 (Digital Marketing &amp; Pitch):</strong> ${escapeHtml(g.step5_marketing_presentation || '—')}</p>
+      </div>
+
+      <div class="section-box">
+        <h3>3. Real-Time Digital Promotion &amp; Acquisition Strategy</h3>
+        <p><strong>Inbound/Outbound Funnel:</strong> TOFU: ${escapeHtml(mkt.funnel_tofu_interest || '—')} | BOFU: ${escapeHtml(mkt.funnel_bofu_conversion || '—')}</p>
+        <p><strong>MarTech Tools Configured:</strong> ${(mkt.martech_tools || []).join(', ') || 'Standard stack'}</p>
+        <p><strong>Target Keywords &amp; SEO:</strong> ${escapeHtml(mkt.seo_keywords || '—')}</p>
+        <p><strong>B2B LinkedIn Pitch:</strong> "${escapeHtml(mkt.social_linkedin_copy || '—')}"</p>
+        <p><strong>Paid Ad Strategy:</strong> Budget: ₹${(mkt.ad_budget || 0).toLocaleString('en-IN')} | Headline: "${escapeHtml(mkt.ad_headline || '—')}"</p>
+      </div>
+
+      <div class="section-box">
+        <h3>4. Team Specialization &amp; Employability Matrix</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Team Member Name</th>
+              <th>Assigned Professional Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(g.member_names || []).map(m => `
+              <tr>
+                <td><strong>${escapeHtml(m)}</strong></td>
+                <td>${escapeHtml(rolesObj[m] || 'Product Marketing Specialist')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWin.document.open();
+  printWin.document.write(html);
+  printWin.document.close();
+}
 
 // Render Customer Reviews & Star Ratings in Student Dashboard
 function renderStudentCustomerReviews(group) {
@@ -3626,57 +3763,69 @@ async function loadLeaderboard(showToastNotice = false) {
       if (div !== "All") query = query.where("division", "==", div);
       if (batch !== "All") query = query.where("batch", "==", batch);
 
-      const snapshot = await query.get();
-      const leaderboard = [];
+      // Function to process snapshot into leaderboard
+      const processLeaderboardSnapshot = (snapshot) => {
+        const leaderboard = [];
+        snapshot.forEach(doc => {
+          const g = doc.data();
+          const s = g.score || null;
+          const s1 = s ? (s.step1_score !== undefined ? s.step1_score : (s.innovation ? Math.round(s.innovation * 10 / 15) : 0)) : (g.step1_score || 0);
+          const s2 = s ? (s.step2_score !== undefined ? s.step2_score : (s.feasibility || 0)) : (g.step2_score || 0);
+          const s3 = s ? (s.step3_score !== undefined ? s.step3_score : (s.solution ? Math.round(s.solution * 10 / 15) : 0)) : (g.step3_score || 0);
+          const s4 = s ? (s.step4_score !== undefined ? s.step4_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step4_score || 0);
+          const s5 = s ? (s.step5_score !== undefined ? s.step5_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step5_score || 0);
+          const total = s ? (s.total || (s1 + s2 + s3 + s4 + s5)) : 0;
 
-      snapshot.forEach(doc => {
-        const g = doc.data();
-        const s = g.score || null;
-        const s1 = s ? (s.step1_score !== undefined ? s.step1_score : (s.innovation ? Math.round(s.innovation * 10 / 15) : 0)) : (g.step1_score || 0);
-        const s2 = s ? (s.step2_score !== undefined ? s.step2_score : (s.feasibility || 0)) : (g.step2_score || 0);
-        const s3 = s ? (s.step3_score !== undefined ? s.step3_score : (s.solution ? Math.round(s.solution * 10 / 15) : 0)) : (g.step3_score || 0);
-        const s4 = s ? (s.step4_score !== undefined ? s.step4_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step4_score || 0);
-        const s5 = s ? (s.step5_score !== undefined ? s.step5_score : (s.presentation ? Math.round(s.presentation / 2) : 0)) : (g.step5_score || 0);
-        const total = s ? (s.total || (s1 + s2 + s3 + s4 + s5)) : 0;
-
-        leaderboard.push({
-          id: doc.id,
-          name: g.name,
-          department: g.department,
-          student_class: g.student_class,
-          division: g.division,
-          batch: g.batch,
-          members: g.member_names || [],
-          is_marked: (s !== null && s !== undefined),
-          step1_score: s1,
-          step2_score: s2,
-          step3_score: s3,
-          step4_score: s4,
-          step5_score: s5,
-          total: total,
-          remarks: s ? s.remarks || "" : "",
-          step1_problem_statement: g.step1_problem_statement || "",
-          step2_market_research: g.step2_market_research || "",
-          step3_innovative_solution: g.step3_innovative_solution || "",
-          step4_feasibility_business_model: g.step4_feasibility_business_model || "",
-          step5_marketing_presentation: g.step5_marketing_presentation || ""
+          leaderboard.push({
+            id: doc.id,
+            name: g.name,
+            department: g.department,
+            student_class: g.student_class,
+            division: g.division,
+            batch: g.batch,
+            members: g.member_names || [],
+            is_marked: (s !== null && s !== undefined),
+            step1_score: s1,
+            step2_score: s2,
+            step3_score: s3,
+            step4_score: s4,
+            step5_score: s5,
+            total: total,
+            remarks: s ? s.remarks || "" : "",
+            step1_problem_statement: g.step1_problem_statement || "",
+            step2_market_research: g.step2_market_research || "",
+            step3_innovative_solution: g.step3_innovative_solution || "",
+            step4_feasibility_business_model: g.step4_feasibility_business_model || "",
+            step5_marketing_presentation: g.step5_marketing_presentation || ""
+          });
         });
-      });
 
-      leaderboard.sort((a, b) => {
-        if (a.is_marked !== b.is_marked) return b.is_marked ? 1 : -1;
-        if (a.total !== b.total) return b.total - a.total;
-        if (a.step1_score !== b.step1_score) return b.step1_score - a.step1_score;
-        return b.step3_score - a.step3_score;
-      });
+        leaderboard.sort((a, b) => {
+          if (a.is_marked !== b.is_marked) return b.is_marked ? 1 : -1;
+          if (a.total !== b.total) return b.total - a.total;
+          if (a.step1_score !== b.step1_score) return b.step1_score - a.step1_score;
+          return b.step3_score - a.step3_score;
+        });
 
-      const ranked = leaderboard.map((item, idx) => ({ ...item, rank: idx + 1 }));
-      const topProject = (ranked.length > 0 && ranked[0].is_marked) ? ranked[0] : null;
+        const ranked = leaderboard.map((item, idx) => ({ ...item, rank: idx + 1 }));
+        const topProject = (ranked.length > 0 && ranked[0].is_marked) ? ranked[0] : null;
 
-      renderLeaderboard(ranked, topProject);
+        renderLeaderboard(ranked, topProject);
+      };
+
+      // Unsubscribe previous real-time leaderboard listener
+      if (leaderboardFirestoreUnsub) {
+        leaderboardFirestoreUnsub();
+        leaderboardFirestoreUnsub = null;
+      }
+
+      // Real-time Firestore onSnapshot listener
+      leaderboardFirestoreUnsub = query.onSnapshot((snapshot) => {
+        processLeaderboardSnapshot(snapshot);
+      }, (err) => console.warn("Firestore leaderboard live sync notice:", err));
 
       if (showToastNotice) {
-        showToast("Leaderboard synced from Firestore.", "info");
+        showToast("Live Leaderboard synced from Firestore in real-time.", "info");
       }
     } catch (err) {
       showToast("Leaderboard error: " + err.message, "error");
@@ -3825,12 +3974,17 @@ async function loadAdminUsers() {
 
   if (IS_PURE_FIREBASE && window.firestoreDb) {
     try {
-      const snapshot = await window.firestoreDb.collection("users").get();
-      const users = [];
-      snapshot.forEach(doc => {
-        users.push({ id: doc.id, ...doc.data() });
-      });
-      renderAdminUsers(users);
+      if (adminUsersFirestoreUnsub) {
+        adminUsersFirestoreUnsub();
+        adminUsersFirestoreUnsub = null;
+      }
+      adminUsersFirestoreUnsub = window.firestoreDb.collection("users").onSnapshot((snapshot) => {
+        const users = [];
+        snapshot.forEach(doc => {
+          users.push({ id: doc.id, ...doc.data() });
+        });
+        renderAdminUsers(users);
+      }, (err) => console.warn("Firestore admin users live sync notice:", err));
     } catch (err) {
       showToast("Error loading users: " + err.message, "error");
     }
@@ -3932,6 +4086,21 @@ function escapeHtml(str) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Bind toggleAuthBtn explicitly to guarantee interactivity
+  const toggleBtn = document.getElementById("toggleAuthBtn");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleAuthMode();
+    });
+  }
+
+  // Handle student registration department change initially
+  const stuDept = document.getElementById("stuRegDept");
+  if (stuDept) {
+    stuDept.addEventListener("change", handleStudentDeptChange);
+  }
+
   checkAuth();
 
   // Background sync fallback: check for any faculty updates every 8 seconds (only needed when running FastAPI without WebSocket)
@@ -3974,5 +4143,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }, 8000);
 });
+
+// Explicit window bindings for HTML inline onclick attributes
+window.toggleAuthMode = toggleAuthMode;
+window.switchRegRole = switchRegRole;
+window.handleStudentDeptChange = handleStudentDeptChange;
+window.handleNewGroupDeptChange = handleNewGroupDeptChange;
+window.handleFacultyRowDeptChange = handleFacultyRowDeptChange;
+window.addFacultyAssignmentRow = addFacultyAssignmentRow;
+window.removeAssignmentRow = removeAssignmentRow;
+window.fillCreds = fillCreds;
+window.handleLogin = handleLogin;
+window.handleStudentRegister = handleStudentRegister;
+window.handleFacultyRegister = handleFacultyRegister;
+window.logout = logout;
+window.switchTab = switchTab;
+
 
 

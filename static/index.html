@@ -99,6 +99,30 @@
               <button type="submit" class="btn btn-primary btn-block" id="loginSubmitBtn">
                 <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
               </button>
+
+              <div class="quick-login-hints" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); text-align: left;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem; display: flex; align-items: center; justify-content: space-between;">
+                  <span><i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Quick One-Click Logins:</span>
+                  <span style="font-weight: normal; text-transform: none; font-size: 0.75rem;">(Auto-fills email &amp; pass)</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                  <button type="button" class="badge-chip" onclick="fillCreds('sumantdeshmukh.in@gmail.com', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Sumant
+                  </button>
+                  <button type="button" class="badge-chip" onclick="fillCreds('faculty.rajesh@college.edu', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Dr. Rajesh
+                  </button>
+                  <button type="button" class="badge-chip" onclick="fillCreds('faculty.ananya@college.edu', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Prof. Ananya
+                  </button>
+                  <button type="button" class="badge-chip" onclick="fillCreds('sd397388@gmail.com', 'student123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-crown" style="color: #f59e0b;"></i> Leader: Sumant Sanjay
+                  </button>
+                  <button type="button" class="badge-chip" onclick="fillCreds('aarav.b1@college.edu', 'student123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-user-graduate" style="color: #10b981;"></i> Student: Aarav Patel
+                  </button>
+                </div>
+              </div>
             </form>
 
             <!-- Register Selector (Faculty vs Student/Leader) -->
@@ -1191,6 +1215,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="./firebase-config.js?v=4"></script>
-  <script src="./app.js?v=18"></script>
+  <script src="./app.js?v=20"></script>
 </body>
 </html>
