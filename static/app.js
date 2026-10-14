@@ -368,8 +368,9 @@ function hideAllTabs() {
 
 // Auth Form Modes
 let isRegisterMode = false;
-function toggleAuthMode() {
-  isRegisterMode = !isRegisterMode;
+
+function setAuthMode(mode) {
+  isRegisterMode = (mode === "register");
   const loginForm = document.getElementById("loginForm");
   const regSelector = document.getElementById("registerRoleSelector");
   const stuForm = document.getElementById("studentRegisterForm");
@@ -380,23 +381,31 @@ function toggleAuthMode() {
   const toggleBtn = document.getElementById("toggleAuthBtn");
 
   if (isRegisterMode) {
-    loginForm.style.display = "none";
-    regSelector.style.display = "block";
+    if (loginForm) loginForm.style.display = "none";
+    if (regSelector) regSelector.style.display = "block";
     switchRegRole("student");
-    title.textContent = "Registration Portal";
-    subtitle.textContent = "Register with your Department, Class, Division, and Batches";
-    prompt.textContent = "Already registered?";
-    toggleBtn.textContent = "Sign in here";
+    if (title) title.textContent = "Registration Portal";
+    if (subtitle) subtitle.textContent = "Register with your Department, Class, Division, and Batches";
+    if (prompt) prompt.textContent = "Already registered?";
+    if (toggleBtn) {
+      toggleBtn.textContent = "Sign in here";
+    }
   } else {
-    loginForm.style.display = "block";
-    regSelector.style.display = "none";
-    stuForm.style.display = "none";
-    facForm.style.display = "none";
-    title.textContent = "E&DM Project Portal";
-    subtitle.textContent = "Sign in to access your project dashboard or evaluation portal";
-    prompt.textContent = "Need an account?";
-    toggleBtn.textContent = "Register here";
+    if (loginForm) loginForm.style.display = "block";
+    if (regSelector) regSelector.style.display = "none";
+    if (stuForm) stuForm.style.display = "none";
+    if (facForm) facForm.style.display = "none";
+    if (title) title.textContent = "E&DM Project Portal";
+    if (subtitle) subtitle.textContent = "Sign in to access your project dashboard or evaluation portal";
+    if (prompt) prompt.textContent = "Need an account?";
+    if (toggleBtn) {
+      toggleBtn.textContent = "Register here";
+    }
   }
+}
+
+function toggleAuthMode() {
+  setAuthMode(isRegisterMode ? "login" : "register");
 }
 
 function switchRegRole(role) {
@@ -4130,15 +4139,6 @@ function escapeHtml(str) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Bind toggleAuthBtn explicitly to guarantee interactivity
-  const toggleBtn = document.getElementById("toggleAuthBtn");
-  if (toggleBtn) {
-    toggleBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      toggleAuthMode();
-    });
-  }
-
   // Bind registration forms explicitly
   const stuForm = document.getElementById("studentRegisterForm");
   if (stuForm) {
@@ -4200,6 +4200,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Explicit window bindings for HTML inline onclick attributes
+window.setAuthMode = setAuthMode;
 window.toggleAuthMode = toggleAuthMode;
 window.switchRegRole = switchRegRole;
 window.handleStudentDeptChange = handleStudentDeptChange;

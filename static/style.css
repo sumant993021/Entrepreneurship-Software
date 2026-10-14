@@ -312,6 +312,11 @@ body {
   border-radius: var(--radius-lg);
   padding: 2rem;
   box-shadow: var(--shadow-lg);
+  transition: max-width 0.3s ease;
+}
+
+.auth-card.auth-card-wide {
+  max-width: 540px;
 }
 
 .auth-header {
