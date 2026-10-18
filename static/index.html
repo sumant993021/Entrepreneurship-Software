@@ -99,30 +99,6 @@
               <button type="submit" class="btn btn-primary btn-block" id="loginSubmitBtn">
                 <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
               </button>
-
-              <div class="quick-login-hints" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); text-align: left;">
-                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem; display: flex; align-items: center; justify-content: space-between;">
-                  <span><i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> Quick One-Click Logins:</span>
-                  <span style="font-weight: normal; text-transform: none; font-size: 0.75rem;">(Auto-fills email &amp; pass)</span>
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
-                  <button type="button" class="badge-chip" onclick="fillCreds('sumantdeshmukh.in@gmail.com', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Sumant
-                  </button>
-                  <button type="button" class="badge-chip" onclick="fillCreds('faculty.rajesh@college.edu', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Dr. Rajesh
-                  </button>
-                  <button type="button" class="badge-chip" onclick="fillCreds('faculty.ananya@college.edu', 'faculty123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                    <i class="fa-solid fa-chalkboard-user" style="color: #6366f1;"></i> Faculty: Prof. Ananya
-                  </button>
-                  <button type="button" class="badge-chip" onclick="fillCreds('sd397388@gmail.com', 'student123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                    <i class="fa-solid fa-crown" style="color: #f59e0b;"></i> Leader: Sumant Sanjay
-                  </button>
-                  <button type="button" class="badge-chip" onclick="fillCreds('aarav.b1@college.edu', 'student123')" style="font-size: 0.76rem; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-hover); color: var(--text-main); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
-                    <i class="fa-solid fa-user-graduate" style="color: #10b981;"></i> Student: Aarav Patel
-                  </button>
-                </div>
-              </div>
             </form>
 
             <!-- Register Selector (Faculty vs Student/Leader) -->
@@ -1190,6 +1166,90 @@
       </div>
     </div>
 
+    <!-- Edit Group Modal (Faculty Management) -->
+    <div id="editGroupModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card" style="max-width: 580px; width: 95%; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.2rem;">
+            <i class="fa-solid fa-pen-to-square" style="color: var(--primary);"></i> Edit Group &amp; Members
+          </h3>
+          <button type="button" class="btn-icon" onclick="closeEditGroupModal()" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form id="editGroupForm" onsubmit="handleSaveEditedGroup(event); return false;">
+          <input type="hidden" id="editGroupId">
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="editGroupName" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Group / Project Name</label>
+            <div class="input-with-icon">
+              <i class="fa-solid fa-users-rectangle"></i>
+              <input type="text" id="editGroupName" required placeholder="Project / Startup Name">
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label for="editGroupLeader" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Leader / Creator Name</label>
+              <div class="input-with-icon">
+                <i class="fa-solid fa-crown" style="color: #f59e0b;"></i>
+                <input type="text" id="editGroupLeader" required placeholder="Leader Name">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="editGroupDept" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Department</label>
+              <select id="editGroupDept" onchange="handleEditGroupDeptChange()">
+                <option value="ECS">Electronics and Computer Science (ECS)</option>
+                <option value="Instrumentation">Instrumentation Engineering</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label for="editGroupClass" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Class</label>
+              <select id="editGroupClass">
+                <option value="Third Year">Third Year</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="editGroupDivGroup">
+              <label for="editGroupDiv" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Division</label>
+              <select id="editGroupDiv">
+                <option value="A">Division A</option>
+                <option value="B">Division B</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="editGroupBatchGroup">
+              <label for="editGroupBatch" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Batch</label>
+              <select id="editGroupBatch">
+                <option value="B1">Batch B1</option>
+                <option value="B2">Batch B2</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label for="editGroupMembers" style="font-weight: 600; font-size: 0.85rem; margin: 0;">Team Members (Comma-Separated)</label>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">e.g., Aarav Patel, Priya Shah, Rohan Gupta</small>
+            </div>
+            <textarea id="editGroupMembers" rows="3" style="width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); padding: 0.6rem; font-family: inherit; font-size: 0.9rem;" placeholder="Aarav Patel, Priya Shah, Rohan Gupta"></textarea>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1rem; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-outline" onclick="closeEditGroupModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveEditGroupBtn">
+              <i class="fa-solid fa-floppy-disk"></i> Save Group Details
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Certificate Modal -->
     <div id="certificateModal" class="modal-backdrop" style="display: none;">
       <div class="modal-card certificate-modal-card" style="max-width: 900px; width: 95%;">
@@ -1215,6 +1275,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="./firebase-config.js?v=4"></script>
-  <script src="./app.js?v=22"></script>
+  <script src="./app.js?v=23"></script>
 </body>
 </html>

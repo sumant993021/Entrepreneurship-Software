@@ -3153,12 +3153,20 @@ async function loadAdminGroups(showToastNotice = false) {
       if (batch !== "All") query = query.where("batch", "==", batch);
 
       const snapshot = await query.get();
-      const groups = [];
+      const groupsMap = new Map();
       snapshot.forEach(doc => {
-        groups.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        const gid = doc.id;
+        // Group deduplication key: Prefer document ID, or fallback to normalized group name + department
+        const normKey = (data.name && data.department) 
+          ? `${data.name.trim().toLowerCase()}::${data.department}::${data.student_class}::${data.division}` 
+          : gid;
+        if (!groupsMap.has(normKey)) {
+          groupsMap.set(normKey, { id: gid, ...data });
+        }
       });
 
-      allAdminGroups = groups;
+      allAdminGroups = Array.from(groupsMap.values());
       renderAdminGroups(allAdminGroups);
 
       if (!adminGroupsFirestoreUnsub) {
@@ -3193,12 +3201,24 @@ async function loadAdminGroups(showToastNotice = false) {
     }
 
     const fetchedGroups = await res.json();
-    const fetchedJson = JSON.stringify(fetchedGroups);
+    
+    // Deduplicate fetched groups by ID or Name/Dept
+    const groupsMap = new Map();
+    (fetchedGroups || []).forEach(g => {
+      const normKey = (g.name && g.department)
+        ? `${g.name.trim().toLowerCase()}::${g.department}::${g.student_class}::${g.division}`
+        : g.id;
+      if (!groupsMap.has(normKey)) {
+        groupsMap.set(normKey, g);
+      }
+    });
+    const uniqueGroups = Array.from(groupsMap.values());
+    const fetchedJson = JSON.stringify(uniqueGroups);
 
     // Only re-render DOM if the data actually changed or if user explicitly requested reload
     if (showToastNotice || fetchedJson !== lastAdminGroupsJson) {
       lastAdminGroupsJson = fetchedJson;
-      allAdminGroups = fetchedGroups;
+      allAdminGroups = uniqueGroups;
       renderAdminGroups(allAdminGroups);
     }
 
@@ -3271,6 +3291,9 @@ function renderAdminGroups(groups) {
           </div>
 
           <div class="admin-group-actions-right">
+            <button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditGroupModal('${g.id}')" title="Edit Group Name &amp; Members" style="color: var(--primary); border-color: var(--primary);">
+              <i class="fa-solid fa-pen-to-square"></i> Edit Group
+            </button>
             <button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation(); promptDeleteGroup('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Delete Group">
               <i class="fa-regular fa-trash-can" style="color: var(--danger);"></i> Delete
             </button>
@@ -3791,6 +3814,152 @@ async function executeDeleteGroup() {
   }
 }
 
+// ----------------- EDIT GROUP MODAL (FACULTY) -----------------
+function handleEditGroupDeptChange() {
+  const dept = document.getElementById("editGroupDept").value;
+  const divGroup = document.getElementById("editGroupDivGroup");
+  const batchGroup = document.getElementById("editGroupBatchGroup");
+  const divSelect = document.getElementById("editGroupDiv");
+  const batchSelect = document.getElementById("editGroupBatch");
+
+  if (dept === "ECS") {
+    if (divGroup) divGroup.style.display = "block";
+    if (batchGroup) batchGroup.style.display = "none";
+    if (divSelect) divSelect.value = "A";
+    if (batchSelect) batchSelect.value = "—";
+  } else if (dept === "Instrumentation") {
+    if (divGroup) divGroup.style.display = "none";
+    if (batchGroup) batchGroup.style.display = "block";
+    if (divSelect) divSelect.value = "—";
+    if (batchSelect) batchSelect.value = "B1";
+  } else {
+    if (divGroup) divGroup.style.display = "block";
+    if (batchGroup) batchGroup.style.display = "block";
+  }
+}
+
+function openEditGroupModal(groupId) {
+  const g = allAdminGroups.find(group => group.id === groupId);
+  if (!g) {
+    showToast("Group details not found.", "error");
+    return;
+  }
+
+  document.getElementById("editGroupId").value = g.id;
+  document.getElementById("editGroupName").value = g.name || "";
+  document.getElementById("editGroupLeader").value = g.creator_name || "";
+  
+  const deptSelect = document.getElementById("editGroupDept");
+  if (deptSelect) deptSelect.value = g.department || "ECS";
+  
+  handleEditGroupDeptChange();
+
+  const classSelect = document.getElementById("editGroupClass");
+  if (classSelect) classSelect.value = g.student_class || "Third Year";
+
+  const divSelect = document.getElementById("editGroupDiv");
+  if (divSelect && g.division && g.division !== "—") {
+    divSelect.value = g.division;
+  }
+
+  const batchSelect = document.getElementById("editGroupBatch");
+  if (batchSelect && g.batch && g.batch !== "—") {
+    batchSelect.value = g.batch;
+  }
+
+  const memberList = (g.member_names || []).join(", ");
+  document.getElementById("editGroupMembers").value = memberList;
+
+  document.getElementById("editGroupModal").style.display = "flex";
+}
+
+function closeEditGroupModal() {
+  document.getElementById("editGroupModal").style.display = "none";
+  document.getElementById("editGroupId").value = "";
+}
+
+async function handleSaveEditedGroup(e) {
+  if (e) e.preventDefault();
+  const groupId = document.getElementById("editGroupId").value;
+  if (!groupId) return;
+
+  const name = document.getElementById("editGroupName").value.trim();
+  const creator_name = document.getElementById("editGroupLeader").value.trim();
+  const department = document.getElementById("editGroupDept").value;
+  const student_class = document.getElementById("editGroupClass").value;
+  const division = department === "Instrumentation" ? "—" : document.getElementById("editGroupDiv").value;
+  const batch = department === "ECS" ? "—" : document.getElementById("editGroupBatch").value;
+
+  const rawMembers = document.getElementById("editGroupMembers").value;
+  const member_names = rawMembers
+    .split(/[,;\n]+/)
+    .map(m => m.trim())
+    .filter(m => m.length > 0);
+
+  if (!name) {
+    showToast("Please enter a group name.", "error");
+    return;
+  }
+
+  const saveBtn = document.getElementById("saveEditGroupBtn");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+  }
+
+  try {
+    const updateData = {
+      name,
+      creator_name,
+      department,
+      student_class,
+      division,
+      batch,
+      member_names,
+      updatedAt: (window.firebase && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+    };
+
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      await window.firestoreDb.collection("groups").doc(groupId).update(updateData);
+      showToast(`Group "${name}" details and members updated successfully!`, "success");
+      closeEditGroupModal();
+      await loadAdminGroups(false);
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(updateData)
+    });
+
+    if (!res.ok) {
+      // Fallback: update in firestore directly
+      if (window.firestoreDb) {
+        await window.firestoreDb.collection("groups").doc(groupId).update(updateData);
+      } else {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to update group details");
+      }
+    }
+
+    if (window.firestoreDb) {
+      window.firestoreDb.collection("groups").doc(groupId).update(updateData).catch(() => {});
+    }
+
+    showToast(`Group "${name}" updated successfully!`, "success");
+    closeEditGroupModal();
+    loadAdminGroups(false);
+  } catch (err) {
+    showToast("Error updating group: " + err.message, "error");
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Group Details`;
+    }
+  }
+}
+
 // ----------------- LEADERBOARD -----------------
 async function loadLeaderboard(showToastNotice = false) {
   const dept = document.getElementById("lbFilterDept") ? document.getElementById("lbFilterDept").value : "All";
@@ -4214,6 +4383,13 @@ window.handleStudentRegister = handleStudentRegister;
 window.handleFacultyRegister = handleFacultyRegister;
 window.logout = logout;
 window.switchTab = switchTab;
+window.openEditGroupModal = openEditGroupModal;
+window.closeEditGroupModal = closeEditGroupModal;
+window.handleEditGroupDeptChange = handleEditGroupDeptChange;
+window.handleSaveEditedGroup = handleSaveEditedGroup;
+window.promptDeleteGroup = promptDeleteGroup;
+window.closeDeleteModal = closeDeleteModal;
+window.executeDeleteGroup = executeDeleteGroup;
 
 
 
