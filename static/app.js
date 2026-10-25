@@ -137,7 +137,128 @@ function authHeaders() {
   };
 }
 
+// Handle Public Shared Showcase URL (/track/whatsapp/:id, /track/telegram/:id, /track/linkedin/:id, /p/:id)
+async function handlePublicShowcaseRoute() {
+  const path = window.location.pathname;
+  let code = null;
+  let channel = "direct";
+
+  const trackMatch = path.match(/^\/track\/(whatsapp|telegram|linkedin|direct)\/([a-zA-Z0-9_\-]+)/i);
+  const pMatch = path.match(/^\/p\/([a-zA-Z0-9_\-]+)/i);
+
+  if (trackMatch) {
+    channel = trackMatch[1].toLowerCase();
+    code = trackMatch[2];
+  } else if (pMatch) {
+    channel = "direct";
+    code = pMatch[1];
+  }
+
+  if (!code) return false;
+
+  console.log(`[Public Showcase] Loading public showcase for code=${code}, channel=${channel}`);
+
+  try {
+    if (window.firestoreDb) {
+      // Lookup group by invite_code or doc id
+      let groupDoc = null;
+      let q = await window.firestoreDb.collection("groups").where("invite_code", "==", code).limit(1).get();
+      if (!q.empty) {
+        groupDoc = q.docs[0];
+      } else {
+        const docSnap = await window.firestoreDb.collection("groups").doc(code).get();
+        if (docSnap.exists) groupDoc = docSnap;
+      }
+
+      if (groupDoc) {
+        const groupData = groupDoc.data();
+        const groupId = groupDoc.id;
+
+        // Record deduplicated unique visitor click
+        const visitorStorageKey = `edmg_visited_${groupId}_${channel}`;
+        const isNewVisitor = !localStorage.getItem(visitorStorageKey);
+        localStorage.setItem(visitorStorageKey, "1");
+
+        const updatePayload = {
+          "marketing_metrics.total_raw_clicks": firebase.firestore.FieldValue.increment(1)
+        };
+        if (isNewVisitor) {
+          updatePayload["marketing_metrics.total_unique_views"] = firebase.firestore.FieldValue.increment(1);
+          if (channel === "whatsapp") updatePayload["marketing_metrics.whatsapp_unique"] = firebase.firestore.FieldValue.increment(1);
+          else if (channel === "telegram") updatePayload["marketing_metrics.telegram_unique"] = firebase.firestore.FieldValue.increment(1);
+          else if (channel === "linkedin") updatePayload["marketing_metrics.linkedin_unique"] = firebase.firestore.FieldValue.increment(1);
+          else updatePayload["marketing_metrics.direct_unique"] = firebase.firestore.FieldValue.increment(1);
+        }
+
+        window.firestoreDb.collection("groups").doc(groupId).update(updatePayload).catch(e => console.warn("Metrics increment notice:", e));
+
+        renderPublicShowcase(groupData);
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn("Public showcase lookup notice:", err);
+  }
+
+  return false;
+}
+
+function renderPublicShowcase(group) {
+  const modal = document.getElementById("publicShowcaseView");
+  if (!modal) return;
+
+  const authSec = document.getElementById("authSection");
+  const mainNav = document.getElementById("mainNav");
+  const userBadge = document.getElementById("userBadge");
+  if (authSec) authSec.style.display = "none";
+  if (mainNav) mainNav.style.display = "none";
+  if (userBadge) userBadge.style.display = "none";
+  hideAllTabs();
+
+  // Populate data
+  document.getElementById("showcaseProjectName").textContent = group.name || "Engineering Project Showcase";
+  
+  let deptText = `${group.department || 'Engineering'} • ${group.student_class || 'Third Year'}`;
+  if (group.division && group.division !== "—") deptText += ` • ${group.division}`;
+  if (group.batch && group.batch !== "—" && group.department !== "ECS") deptText += ` • ${group.batch}`;
+  document.getElementById("showcaseDeptBadges").textContent = deptText;
+  document.getElementById("showcaseAllocation").textContent = `${group.department || ''} ${group.division || ''} (${group.student_class || 'Third Year'})`;
+
+  document.getElementById("showcaseLeaderName").textContent = `Leader: ${group.creator_name || 'Group Leader'}`;
+  document.getElementById("showcaseMembersList").textContent = `Members: ${(group.member_names || []).join(", ") || 'No members listed'}`;
+
+  document.getElementById("showcaseProblemStatement").textContent = group.step1_problem_statement || "Problem statement under review by faculty.";
+  document.getElementById("showcaseSolutionUSP").textContent = group.pitch_strategy?.solution_usp || group.step3_innovative_solution || "Innovative engineering solution and functional prototype.";
+
+  // Pitch hook & Deck URL
+  const pitchHook = group.pitch_strategy?.hook_tagline || group.step1_problem_statement || "Verified Capstone Presentation Deck";
+  document.getElementById("showcasePitchHook").textContent = `"${pitchHook}"`;
+
+  const deckUrl = group.pitch_strategy?.pitch_deck_url || "";
+  const deckBtn = document.getElementById("showcaseDeckBtn");
+  const deckArea = document.getElementById("showcaseDeckLinkArea");
+  const noDeckMsg = document.getElementById("showcaseNoDeckMessage");
+
+  if (deckUrl && deckUrl.trim().length > 0) {
+    if (deckBtn) {
+      deckBtn.href = deckUrl.trim();
+      deckBtn.style.display = "inline-flex";
+    }
+    if (deckArea) deckArea.style.display = "block";
+    if (noDeckMsg) noDeckMsg.style.display = "none";
+  } else {
+    if (deckArea) deckArea.style.display = "none";
+    if (noDeckMsg) noDeckMsg.style.display = "block";
+  }
+
+  modal.style.display = "flex";
+}
+
 async function checkAuth() {
+  // First, check if user is visiting a public shared project link (/track/... or /p/...)
+  const isShowcase = await handlePublicShowcaseRoute();
+  if (isShowcase) return;
+
   // If running pure Firebase, check Firebase Auth state
   if (IS_PURE_FIREBASE && window.firebaseAuth) {
     window.firebaseAuth.onAuthStateChanged(async (fbUser) => {
@@ -1409,7 +1530,8 @@ async function loadMyGroup() {
 
 function renderMyGroupDetails(group) {
   document.getElementById("activeGroupName").textContent = group.name;
-  document.getElementById("activeGroupInviteCode").textContent = group.invite_code;
+  const inviteCodeEl = document.getElementById("activeGroupInviteCode");
+  if (inviteCodeEl) inviteCodeEl.textContent = group.invite_code || "";
   document.getElementById("activeGroupDept").textContent = group.department;
   document.getElementById("activeGroupClass").textContent = group.student_class;
   document.getElementById("activeGroupDiv").textContent = group.division;
@@ -3273,7 +3395,6 @@ function renderAdminGroups(groups) {
               <span class="badge-class">${g.student_class}</span>
               <span class="badge-div">${g.division}</span>
               ${(g.department !== "ECS" && g.batch && g.batch !== "—") ? `<span class="badge-batch">${g.batch}</span>` : ''}
-              <span class="badge-code">Code: ${g.invite_code}</span>
               <span class="badge" style="background: ${approvedCount === 5 ? '#10b981' : (approvedCount > 0 ? '#f59e0b' : '#64748b')}; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px;">
                 <i class="fa-solid fa-bars-progress"></i> ${approvedCount}/5 Steps Approved
               </span>
