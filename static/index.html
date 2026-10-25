@@ -951,6 +951,65 @@
         <!-- Faculty's Assigned Batches Summary Badge Bar -->
         <div id="facultyAssignedBadges" class="faculty-assigned-summary"></div>
 
+        <!-- Registered Groups Count & Department Stats Cards -->
+        <div class="faculty-stats-grid" id="facultyGroupStatsBar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+          <!-- Total Groups -->
+          <div class="card stat-widget" onclick="setFacultyDeptFilter('All')" style="cursor: pointer; padding: 1.15rem 1.25rem; border-left: 4px solid var(--primary); display: flex; align-items: center; justify-content: space-between; transition: transform 0.15s, box-shadow 0.15s;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.25rem;">
+                <i class="fa-solid fa-layer-group" style="color: var(--primary);"></i> Total Registered
+              </span>
+              <div style="font-size: 1.75rem; font-weight: 800; color: var(--text-main);" id="statTotalGroupsCount">—</div>
+              <small style="color: var(--text-muted); font-size: 0.72rem;">All Departments Combined</small>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(99, 102, 241, 0.1); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              <i class="fa-solid fa-users-rectangle"></i>
+            </div>
+          </div>
+
+          <!-- ECS Department Groups -->
+          <div class="card stat-widget" onclick="setFacultyDeptFilter('ECS')" style="cursor: pointer; padding: 1.15rem 1.25rem; border-left: 4px solid #06b6d4; display: flex; align-items: center; justify-content: space-between; transition: transform 0.15s, box-shadow 0.15s;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.25rem;">
+                <i class="fa-solid fa-microchip" style="color: #06b6d4;"></i> ECS Groups
+              </span>
+              <div style="font-size: 1.75rem; font-weight: 800; color: #0891b2;" id="statEcsGroupsCount">—</div>
+              <small style="color: var(--text-muted); font-size: 0.72rem;">Div A &amp; Div B (No Batches)</small>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(6, 182, 212, 0.1); color: #06b6d4; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              <i class="fa-solid fa-laptop-code"></i>
+            </div>
+          </div>
+
+          <!-- Instrumentation Department Groups -->
+          <div class="card stat-widget" onclick="setFacultyDeptFilter('Instrumentation')" style="cursor: pointer; padding: 1.15rem 1.25rem; border-left: 4px solid #10b981; display: flex; align-items: center; justify-content: space-between; transition: transform 0.15s, box-shadow 0.15s;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.25rem;">
+                <i class="fa-solid fa-gauge-high" style="color: #10b981;"></i> Instrumentation
+              </span>
+              <div style="font-size: 1.75rem; font-weight: 800; color: #059669;" id="statInstGroupsCount">—</div>
+              <small style="color: var(--text-muted); font-size: 0.72rem;">Batch B1 &amp; B2 (No Divs)</small>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              <i class="fa-solid fa-sliders"></i>
+            </div>
+          </div>
+
+          <!-- Active Filter Pill & Count Indicator -->
+          <div class="card stat-widget" style="padding: 1.15rem 1.25rem; border-left: 4px solid #f59e0b; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.25rem;">
+                <i class="fa-solid fa-filter" style="color: #f59e0b;"></i> Current Matching View
+              </span>
+              <div style="font-size: 1.75rem; font-weight: 800; color: #d97706;" id="statFilteredGroupsCount">—</div>
+              <small style="color: var(--text-muted); font-size: 0.72rem;" id="statFilteredDeptDesc">Showing all groups</small>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(245, 158, 11, 0.1); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+              <i class="fa-solid fa-eye"></i>
+            </div>
+          </div>
+        </div>
+
         <!-- Department, Class, Division, and Batch Filters for Faculty -->
         <div class="filter-bar-card">
           <div class="filter-controls">
@@ -1312,6 +1371,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="/firebase-config.js?v=4"></script>
-  <script src="/app.js?v=24"></script>
+  <script src="/app.js?v=25"></script>
 </body>
 </html>

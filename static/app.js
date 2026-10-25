@@ -3266,29 +3266,36 @@ async function loadAdminGroups(showToastNotice = false) {
     }
   }
 
+  let totalAllGroupsList = [];
+
   if (IS_PURE_FIREBASE && window.firestoreDb) {
     try {
-      let query = window.firestoreDb.collection("groups");
-      if (dept !== "All") query = query.where("department", "==", dept);
-      if (cls !== "All") query = query.where("student_class", "==", cls);
-      if (div !== "All") query = query.where("division", "==", div);
-      if (batch !== "All") query = query.where("batch", "==", batch);
-
-      const snapshot = await query.get();
-      const groupsMap = new Map();
-      snapshot.forEach(doc => {
-        const data = doc.data();
+      // 1. Fetch total registered groups across all departments to maintain global counts
+      const allDocsSnap = await window.firestoreDb.collection("groups").get();
+      const allDedupeMap = new Map();
+      allDocsSnap.forEach(doc => {
+        const d = doc.data();
         const gid = doc.id;
-        // Group deduplication key: Prefer document ID, or fallback to normalized group name + department
-        const normKey = (data.name && data.department) 
-          ? `${data.name.trim().toLowerCase()}::${data.department}::${data.student_class}::${data.division}` 
+        const normKey = (d.name && d.department) 
+          ? `${d.name.trim().toLowerCase()}::${d.department}::${d.student_class}::${d.division}` 
           : gid;
-        if (!groupsMap.has(normKey)) {
-          groupsMap.set(normKey, { id: gid, ...data });
+        if (!allDedupeMap.has(normKey)) {
+          allDedupeMap.set(normKey, { id: gid, ...d });
         }
       });
+      totalAllGroupsList = Array.from(allDedupeMap.values());
 
-      allAdminGroups = Array.from(groupsMap.values());
+      // 2. Filter in-memory using active faculty dropdowns
+      const filteredGroups = totalAllGroupsList.filter(g => {
+        if (dept !== "All" && g.department !== dept) return false;
+        if (cls !== "All" && g.student_class !== cls) return false;
+        if (div !== "All" && g.division !== div) return false;
+        if (batch !== "All" && g.batch !== batch) return false;
+        return true;
+      });
+
+      allAdminGroups = filteredGroups;
+      updateFacultyGroupCounters(totalAllGroupsList, filteredGroups);
       renderAdminGroups(allAdminGroups);
 
       if (!adminGroupsFirestoreUnsub) {
@@ -3341,6 +3348,7 @@ async function loadAdminGroups(showToastNotice = false) {
     if (showToastNotice || fetchedJson !== lastAdminGroupsJson) {
       lastAdminGroupsJson = fetchedJson;
       allAdminGroups = uniqueGroups;
+      updateFacultyGroupCounters(allAdminGroups, allAdminGroups);
       renderAdminGroups(allAdminGroups);
     }
 
@@ -3355,6 +3363,48 @@ async function loadAdminGroups(showToastNotice = false) {
   } catch (err) {
     showToast(err.message, "error");
   }
+}
+
+// Update Faculty Group Statistics Widgets (Total and per-department)
+function updateFacultyGroupCounters(allGroups, filteredList) {
+  const list = allGroups || [];
+  const currentList = filteredList || allAdminGroups || [];
+
+  const total = list.length;
+  const ecsCount = list.filter(g => (g.department || "").toUpperCase() === "ECS").length;
+  const instCount = list.filter(g => (g.department || "").toLowerCase().includes("instrumentation")).length;
+
+  const totalEl = document.getElementById("statTotalGroupsCount");
+  const ecsEl = document.getElementById("statEcsGroupsCount");
+  const instEl = document.getElementById("statInstGroupsCount");
+  const filteredEl = document.getElementById("statFilteredGroupsCount");
+  const descEl = document.getElementById("statFilteredDeptDesc");
+
+  if (totalEl) totalEl.textContent = total.toLocaleString();
+  if (ecsEl) ecsEl.textContent = ecsCount.toLocaleString();
+  if (instEl) instEl.textContent = instCount.toLocaleString();
+  if (filteredEl) filteredEl.textContent = currentList.length.toLocaleString();
+
+  if (descEl) {
+    const deptVal = document.getElementById("filterDept")?.value || "All";
+    const divVal = document.getElementById("filterDiv")?.value || "All";
+    const batchVal = document.getElementById("filterBatch")?.value || "All";
+    
+    let parts = [];
+    if (deptVal !== "All") parts.push(deptVal);
+    if (divVal !== "All") parts.push(divVal);
+    if (batchVal !== "All") parts.push(batchVal);
+    
+    descEl.textContent = parts.length > 0 ? `Filtered by: ${parts.join(" • ")}` : "All registered groups shown";
+  }
+}
+
+// 1-Click quick filter by clicking stat cards
+function setFacultyDeptFilter(dept) {
+  const deptSelect = document.getElementById("filterDept");
+  if (!deptSelect) return;
+  deptSelect.value = dept;
+  loadAdminGroups();
 }
 
 
@@ -4511,6 +4561,8 @@ window.handleSaveEditedGroup = handleSaveEditedGroup;
 window.promptDeleteGroup = promptDeleteGroup;
 window.closeDeleteModal = closeDeleteModal;
 window.executeDeleteGroup = executeDeleteGroup;
+window.setFacultyDeptFilter = setFacultyDeptFilter;
+window.updateFacultyGroupCounters = updateFacultyGroupCounters;
 
 
 
