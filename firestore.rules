@@ -61,5 +61,18 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
+
+    // Cross-Department Customer Review Assignments
+    match /customer_assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+      allow write: if isFaculty();
+    }
+
+    // Customer reviews submitted by assigned students/customers
+    match /groups/{groupId}/reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isFaculty();
+    }
   }
 }

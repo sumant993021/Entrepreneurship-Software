@@ -1478,6 +1478,9 @@ async function loadMyGroup() {
         renderMyGroupDetails(currentMyGroup);
         listenToMyGroupFirestore(currentMyGroup.id);
       }
+
+      // Check if student's department/division has any assigned customer review tasks
+      loadStudentCustomerReviewTasks();
       return;
     }
 
@@ -4436,6 +4439,9 @@ function renderFacultySettingsProfile() {
       allocList.innerHTML = `<em style="color: var(--text-muted); font-size: 0.85rem;">Universal Access (All Departments &amp; Divisions Assigned)</em>`;
     }
   }
+
+  // Load and render cross-department customer review assignments
+  loadCustomerAssignments();
 }
 
 // Handle Faculty Updating their Login Email Address
@@ -4670,6 +4676,511 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 8000);
 });
 
+// ==========================================
+// CROSS-DEPARTMENT CUSTOMER REVIEW ASSIGNMENTS
+// ==========================================
+
+let activeCustomerAssignments = [];
+let activeCustomerAssignmentsUnsub = null;
+
+// Modal Controls for Faculty Customer Review Assignment
+function openCustomerAssignmentModal() {
+  const modal = document.getElementById("customerAssignmentModal");
+  if (!modal) return;
+  modal.style.display = "flex";
+
+  // Pre-fill defaults based on faculty assignments if available
+  if (currentUser && currentUser.assignments && currentUser.assignments.length >= 2) {
+    const a1 = currentUser.assignments[0];
+    const a2 = currentUser.assignments[1];
+    
+    const revDeptSelect = document.getElementById("assignReviewerDept");
+    if (revDeptSelect) {
+      revDeptSelect.value = a1.department;
+      handleAssignReviewerDeptChange();
+      const revDivSelect = document.getElementById("assignReviewerDiv");
+      if (revDivSelect && a1.division && a1.division !== "—") {
+        revDivSelect.value = a1.division;
+      }
+    }
+
+    const targetDeptSelect = document.getElementById("assignTargetDept");
+    if (targetDeptSelect) {
+      targetDeptSelect.value = a2.department;
+      handleAssignTargetDeptChange();
+    }
+  } else {
+    handleAssignReviewerDeptChange();
+    handleAssignTargetDeptChange();
+  }
+}
+
+function closeCustomerAssignmentModal() {
+  const modal = document.getElementById("customerAssignmentModal");
+  if (modal) modal.style.display = "none";
+}
+
+function handleAssignReviewerDeptChange() {
+  const dept = document.getElementById("assignReviewerDept").value;
+  const divGroup = document.getElementById("assignReviewerDivGroup");
+  const batchGroup = document.getElementById("assignReviewerBatchGroup");
+
+  if (dept === "ECS") {
+    if (divGroup) divGroup.style.display = "block";
+    if (batchGroup) batchGroup.style.display = "none";
+  } else {
+    // Instrumentation: Batches B1/B2
+    if (divGroup) divGroup.style.display = "none";
+    if (batchGroup) batchGroup.style.display = "block";
+  }
+}
+
+function handleAssignTargetDeptChange() {
+  const dept = document.getElementById("assignTargetDept").value;
+  const divGroup = document.getElementById("assignTargetDivGroup");
+  const batchGroup = document.getElementById("assignTargetBatchGroup");
+
+  if (dept === "ECS") {
+    if (divGroup) divGroup.style.display = "block";
+    if (batchGroup) batchGroup.style.display = "none";
+  } else {
+    // Instrumentation: Batches B1/B2
+    if (divGroup) divGroup.style.display = "none";
+    if (batchGroup) batchGroup.style.display = "block";
+  }
+}
+
+// Save or Update Customer Review Assignment
+async function handleSaveCustomerAssignment(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!currentUser || currentUser.role !== "faculty") return;
+
+  const revDept = document.getElementById("assignReviewerDept").value;
+  const revDiv = revDept === "ECS" ? document.getElementById("assignReviewerDiv").value : "—";
+  const revBatch = revDept === "Instrumentation" ? document.getElementById("assignReviewerBatch").value : "All Batches";
+
+  const targetDept = document.getElementById("assignTargetDept").value;
+  const targetDiv = targetDept === "ECS" ? document.getElementById("assignTargetDiv").value : "—";
+  const targetBatch = targetDept === "Instrumentation" ? document.getElementById("assignTargetBatch").value : "All Batches";
+
+  const promptText = (document.getElementById("assignReviewPrompt").value || "").trim() ||
+    "Test the product prototype, verify usability, and provide feedback as target customers.";
+
+  const saveBtn = document.getElementById("saveCustomerAssignmentBtn");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Activating Assignment...`;
+  }
+
+  const assignmentDoc = {
+    reviewer_department: revDept,
+    reviewer_division: revDiv,
+    reviewer_batch: revBatch,
+    target_department: targetDept,
+    target_division: targetDiv,
+    target_batch: targetBatch,
+    instructions: promptText,
+    assigned_by_id: currentUser.id,
+    assigned_by_name: currentUser.name || "Faculty Member",
+    active: true,
+    created_at: new Date().toISOString()
+  };
+
+  try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      await window.firestoreDb.collection("customer_assignments").add({
+        ...assignmentDoc,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast("Customer review assignment created successfully!", "success");
+      closeCustomerAssignmentModal();
+      loadCustomerAssignments();
+      return;
+    }
+
+    // Fallback local memory
+    assignmentDoc.id = "ca_" + Date.now();
+    activeCustomerAssignments.unshift(assignmentDoc);
+    renderCustomerAssignments(activeCustomerAssignments);
+    showToast("Customer review assignment created successfully!", "success");
+    closeCustomerAssignmentModal();
+  } catch (err) {
+    console.error("Error saving customer assignment:", err);
+    showToast("Failed to create assignment: " + err.message, "error");
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `<i class="fa-solid fa-link"></i> Confirm &amp; Activate Customer Assignment`;
+    }
+  }
+}
+
+// Load and Render Customer Assignments in Faculty Settings
+async function loadCustomerAssignments() {
+  if (!currentUser || currentUser.role !== "faculty") return;
+  const listContainer = document.getElementById("facultyCustomerAssignmentsList");
+  if (!listContainer) return;
+
+  if (IS_PURE_FIREBASE && window.firestoreDb) {
+    try {
+      if (activeCustomerAssignmentsUnsub) {
+        activeCustomerAssignmentsUnsub();
+        activeCustomerAssignmentsUnsub = null;
+      }
+
+      activeCustomerAssignmentsUnsub = window.firestoreDb.collection("customer_assignments")
+        .where("active", "==", true)
+        .onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => {
+            list.push({ id: doc.id, ...doc.data() });
+          });
+          activeCustomerAssignments = list;
+          renderCustomerAssignments(list);
+        }, (err) => console.warn("Customer assignments sync notice:", err));
+      return;
+    } catch (err) {
+      console.warn("Firestore customer assignments query error:", err);
+    }
+  }
+
+  renderCustomerAssignments(activeCustomerAssignments);
+}
+
+function renderCustomerAssignments(assignments) {
+  const listContainer = document.getElementById("facultyCustomerAssignmentsList");
+  if (!listContainer) return;
+
+  if (!assignments || assignments.length === 0) {
+    listContainer.innerHTML = `
+      <div style="text-align: center; padding: 2rem 1rem; background: var(--bg-hover); border-radius: var(--radius-md); border: 1px dashed var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+        <i class="fa-solid fa-people-arrows" style="font-size: 2rem; color: #f59e0b; margin-bottom: 0.65rem; display: block;"></i>
+        No cross-department customer review assignments configured yet.<br>
+        Click <strong>"Create New Customer Assignment"</strong> to pair a customer division with another department's projects.
+      </div>
+    `;
+    return;
+  }
+
+  listContainer.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+      ${assignments.map(a => {
+        const revMeta = a.reviewer_department === "ECS"
+          ? `${a.reviewer_division}`
+          : `${a.reviewer_batch}`;
+        const targetMeta = a.target_department === "ECS"
+          ? `${a.target_division}`
+          : `${a.target_batch}`;
+
+        return `
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 1.15rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: var(--shadow-sm);">
+            <div style="flex: 1; min-width: 280px;">
+              <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.78rem;">
+                  <i class="fa-solid fa-user-tag"></i> CUSTOMER: ${escapeHtml(a.reviewer_department)} (${escapeHtml(revMeta)})
+                </span>
+                <i class="fa-solid fa-arrow-right" style="color: var(--text-muted); font-size: 0.85rem;"></i>
+                <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-weight: 800; font-size: 0.78rem;">
+                  <i class="fa-solid fa-rocket"></i> TARGET: ${escapeHtml(a.target_department)} (${escapeHtml(targetMeta)})
+                </span>
+              </div>
+              <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+                <strong>Evaluation Brief:</strong> ${escapeHtml(a.instructions || 'Review prototypes as target customers')}
+              </p>
+              <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.35rem;">
+                Configured by: ${escapeHtml(a.assigned_by_name || 'Faculty')} • Active Evaluator Allocation
+              </small>
+            </div>
+            <div>
+              <button type="button" class="btn btn-outline btn-sm" onclick="removeCustomerAssignment('${a.id}')" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3); font-size: 0.78rem;">
+                <i class="fa-solid fa-trash-can"></i> Deactivate
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+// Remove / Deactivate a Customer Assignment
+async function removeCustomerAssignment(assignmentId) {
+  if (!confirm("Are you sure you want to deactivate this customer review assignment?")) return;
+
+  try {
+    if (IS_PURE_FIREBASE && window.firestoreDb && assignmentId) {
+      await window.firestoreDb.collection("customer_assignments").doc(assignmentId).delete();
+      showToast("Customer review assignment removed.", "success");
+      loadCustomerAssignments();
+      return;
+    }
+
+    activeCustomerAssignments = activeCustomerAssignments.filter(a => a.id !== assignmentId);
+    renderCustomerAssignments(activeCustomerAssignments);
+    showToast("Customer review assignment removed.", "success");
+  } catch (err) {
+    showToast("Error deactivating assignment: " + err.message, "error");
+  }
+}
+
+// ==========================================
+// STUDENT EVALUATION INTERFACE FOR ASSIGNED CUSTOMERS
+// ==========================================
+
+let studentCustomerReviewTasksUnsub = null;
+
+async function loadStudentCustomerReviewTasks() {
+  if (!currentUser || currentUser.role !== "student") return;
+  const taskSection = document.getElementById("studentCustomerTaskSection");
+  if (!taskSection) return;
+
+  if (IS_PURE_FIREBASE && window.firestoreDb) {
+    try {
+      if (studentCustomerReviewTasksUnsub) {
+        studentCustomerReviewTasksUnsub();
+        studentCustomerReviewTasksUnsub = null;
+      }
+
+      studentCustomerReviewTasksUnsub = window.firestoreDb.collection("customer_assignments")
+        .where("active", "==", true)
+        .onSnapshot(async (snapshot) => {
+          const matchingAssignments = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            // Check if matches student's department
+            if (data.reviewer_department === currentUser.department) {
+              // Check division/batch match
+              let isMatch = true;
+              if (currentUser.department === "ECS") {
+                if (data.reviewer_division && data.reviewer_division !== "All Divisions" && data.reviewer_division !== currentUser.division) {
+                  isMatch = false;
+                }
+              } else {
+                if (data.reviewer_batch && data.reviewer_batch !== "All Batches" && data.reviewer_batch !== (currentUser.batch || "Batch 1")) {
+                  isMatch = false;
+                }
+              }
+              if (isMatch) matchingAssignments.push({ id: doc.id, ...data });
+            }
+          });
+
+          if (matchingAssignments.length === 0) {
+            taskSection.style.display = "none";
+            return;
+          }
+
+          // Fetch target groups to display for review
+          await renderStudentCustomerTasks(matchingAssignments);
+        }, (err) => console.warn("Student customer tasks sync notice:", err));
+      return;
+    } catch (err) {
+      console.warn("loadStudentCustomerReviewTasks error:", err);
+    }
+  }
+}
+
+async function renderStudentCustomerTasks(assignments) {
+  const taskSection = document.getElementById("studentCustomerTaskSection");
+  const targetDeptNameEl = document.getElementById("custTaskTargetDeptName");
+  const instructionsEl = document.getElementById("custTaskInstructions");
+  const countBadgeEl = document.getElementById("custTaskCountBadge");
+  const projectsListEl = document.getElementById("studentCustomerProjectsList");
+
+  if (!taskSection || !projectsListEl) return;
+
+  const primaryAssign = assignments[0];
+  if (targetDeptNameEl) targetDeptNameEl.textContent = primaryAssign.target_department;
+  if (instructionsEl) instructionsEl.textContent = primaryAssign.instructions || "Please evaluate the projects below as external customers.";
+
+  // Fetch groups matching target criteria
+  try {
+    let targetGroups = [];
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const snap = await window.firestoreDb.collection("groups").where("department", "==", primaryAssign.target_department).get();
+      snap.forEach(doc => {
+        const g = { id: doc.id, ...doc.data() };
+        // Don't show the student's own group if same department
+        if (g.created_by !== currentUser.id && !(g.member_user_ids || []).includes(currentUser.id)) {
+          // Check division/batch filter
+          let matchesTarget = true;
+          if (primaryAssign.target_department === "ECS") {
+            if (primaryAssign.target_division && primaryAssign.target_division !== "All Divisions" && primaryAssign.target_division !== g.division) {
+              matchesTarget = false;
+            }
+          } else {
+            if (primaryAssign.target_batch && primaryAssign.target_batch !== "All Batches" && primaryAssign.target_batch !== g.batch) {
+              matchesTarget = false;
+            }
+          }
+          if (matchesTarget) targetGroups.push(g);
+        }
+      });
+    }
+
+    if (targetGroups.length === 0) {
+      taskSection.style.display = "block";
+      if (countBadgeEl) countBadgeEl.textContent = "0 Projects Found";
+      projectsListEl.innerHTML = `
+        <div style="grid-column: 1 / -1; background: var(--bg-card); padding: 1.25rem; border-radius: var(--radius-md); text-align: center; color: var(--text-muted); border: 1px dashed var(--border-color);">
+          <i class="fa-solid fa-clock-rotate-left" style="font-size: 1.5rem; color: #f59e0b; margin-bottom: 0.5rem; display: block;"></i>
+          No project groups registered yet under ${escapeHtml(primaryAssign.target_department)} ${escapeHtml(primaryAssign.target_batch !== 'All Batches' ? primaryAssign.target_batch : '')}. Check back soon!
+        </div>
+      `;
+      return;
+    }
+
+    taskSection.style.display = "block";
+    if (countBadgeEl) countBadgeEl.textContent = `${targetGroups.length} Project${targetGroups.length > 1 ? 's' : ''} To Review`;
+
+    projectsListEl.innerHTML = targetGroups.map(g => {
+      const revs = g.customer_reviews || [];
+      // Check if current user already submitted a review
+      const myReview = revs.find(r => r.reviewer_uid === currentUser.id || (r.customer_name && r.customer_name.includes(currentUser.name)));
+      const avg = g.average_rating !== undefined ? g.average_rating : 5.0;
+
+      return `
+        <div style="background: var(--bg-card); border: 1.5px solid ${myReview ? 'var(--success)' : '#f59e0b'}; border-radius: var(--radius-md); padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm);">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-main);">${escapeHtml(g.name)}</h4>
+              <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-size: 0.72rem;">
+                ${escapeHtml(g.department)} • ${escapeHtml(g.batch || g.division || '—')}
+              </span>
+            </div>
+            <p style="margin: 0 0 0.75rem; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+              ${escapeHtml(g.step1_problem_statement || 'Venture prototype under development')}
+            </p>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+              <i class="fa-solid fa-users"></i> ${escapeHtml((g.member_names || []).join(', ') || g.created_by_name || 'Team')}
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border-color); padding-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+            ${myReview ? `
+              <span style="color: var(--success); font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <i class="fa-solid fa-circle-check"></i> Reviewed (${myReview.rating}★)
+              </span>
+              <button type="button" class="btn btn-outline btn-sm" onclick="openStudentReviewModal('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}', '${escapeHtml(g.department)} • ${escapeHtml(g.batch || g.division || '')}')" style="font-size: 0.75rem;">
+                <i class="fa-solid fa-pen"></i> Update Review
+              </button>
+            ` : `
+              <span style="color: #f59e0b; font-weight: 600; font-size: 0.78rem;">
+                <i class="fa-solid fa-star"></i> Avg ${avg.toFixed(1)} (${revs.length})
+              </span>
+              <button type="button" class="btn btn-primary btn-sm" onclick="openStudentReviewModal('${g.id}', '${escapeHtml(g.name).replace(/'/g, "\\'")}', '${escapeHtml(g.department)} • ${escapeHtml(g.batch || g.division || '')}')" style="font-size: 0.78rem; background: #f59e0b; border-color: #f59e0b;">
+                <i class="fa-solid fa-star"></i> Review &amp; Rate
+              </button>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error("renderStudentCustomerTasks error:", err);
+  }
+}
+
+// Student Review Modal
+function openStudentReviewModal(groupId, groupName, groupMeta) {
+  const modal = document.getElementById("studentReviewModal");
+  if (!modal) return;
+
+  document.getElementById("evalTargetGroupId").value = groupId;
+  document.getElementById("evalTargetGroupName").textContent = groupName;
+  document.getElementById("evalTargetGroupMeta").textContent = groupMeta;
+  document.getElementById("submitStudentReviewForm").reset();
+
+  modal.style.display = "flex";
+}
+
+function closeStudentReviewModal() {
+  const modal = document.getElementById("studentReviewModal");
+  if (modal) modal.style.display = "none";
+}
+
+// Student Submits Customer Review for Target Group
+async function handleCustomerStudentReviewSubmit(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!currentUser || currentUser.role !== "student") return;
+
+  const groupId = document.getElementById("evalTargetGroupId").value;
+  const rating = parseInt(document.getElementById("evalReviewRating").value);
+  const comment = document.getElementById("evalReviewComment").value.trim();
+  const submitBtn = document.getElementById("evalSubmitReviewBtn");
+
+  if (!groupId || !comment) {
+    showToast("Please provide detailed feedback for the project.", "error");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Submitting Review...`;
+  }
+
+  const reviewerDept = currentUser.department || "Customer";
+  const reviewerDiv = currentUser.division || "—";
+  const reviewerBatch = currentUser.batch || "—";
+  const reviewerAlloc = reviewerDept === "ECS" ? `${reviewerDept} ${reviewerDiv}` : `${reviewerDept} ${reviewerBatch}`;
+
+  const revObj = {
+    id: "rev_" + Date.now(),
+    customer_name: `${currentUser.name} (${reviewerAlloc} Customer)`,
+    reviewer_uid: currentUser.id,
+    reviewer_dept: reviewerDept,
+    reviewer_div: reviewerDiv,
+    reviewer_batch: reviewerBatch,
+    rating: rating,
+    comment: comment,
+    created_at: new Date().toISOString()
+  };
+
+  try {
+    if (IS_PURE_FIREBASE && window.firestoreDb) {
+      const groupRef = window.firestoreDb.collection("groups").doc(groupId);
+      const groupSnap = await groupRef.get();
+      if (!groupSnap.exists) throw new Error("Project group record not found.");
+
+      const gData = groupSnap.data();
+      let revs = gData.customer_reviews || [];
+      // Remove any previous review by same user to prevent duplicate counting
+      revs = revs.filter(r => r.reviewer_uid !== currentUser.id);
+      revs.unshift(revObj);
+
+      const totalSum = revs.reduce((acc, r) => acc + (r.rating || 5), 0);
+      const newAvg = roundTo1(totalSum / revs.length);
+
+      await groupRef.update({
+        customer_reviews: revs,
+        average_rating: newAvg,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Also record in reviews subcollection for auditing
+      await groupRef.collection("reviews").add({
+        ...revObj,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(() => {});
+
+      showToast("Your customer review & star rating have been recorded!", "success");
+      closeStudentReviewModal();
+      loadStudentCustomerReviewTasks();
+      return;
+    }
+
+    showToast("Customer review submitted successfully!", "success");
+    closeStudentReviewModal();
+  } catch (err) {
+    console.error("handleCustomerStudentReviewSubmit error:", err);
+    showToast("Failed to submit review: " + err.message, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Submit Customer Review`;
+    }
+  }
+}
+
 // Explicit window bindings for HTML inline onclick attributes
 window.setAuthMode = setAuthMode;
 window.toggleAuthMode = toggleAuthMode;
@@ -4696,6 +5207,22 @@ window.setFacultyDeptFilter = setFacultyDeptFilter;
 window.updateFacultyGroupCounters = updateFacultyGroupCounters;
 window.handleChangeFacultyEmail = handleChangeFacultyEmail;
 window.renderFacultySettingsProfile = renderFacultySettingsProfile;
+
+// Customer Review Assignment Window Exports
+window.openCustomerAssignmentModal = openCustomerAssignmentModal;
+window.closeCustomerAssignmentModal = closeCustomerAssignmentModal;
+window.handleAssignReviewerDeptChange = handleAssignReviewerDeptChange;
+window.handleAssignTargetDeptChange = handleAssignTargetDeptChange;
+window.handleSaveCustomerAssignment = handleSaveCustomerAssignment;
+window.loadCustomerAssignments = loadCustomerAssignments;
+window.renderCustomerAssignments = renderCustomerAssignments;
+window.removeCustomerAssignment = removeCustomerAssignment;
+window.loadStudentCustomerReviewTasks = loadStudentCustomerReviewTasks;
+window.renderStudentCustomerTasks = renderStudentCustomerTasks;
+window.openStudentReviewModal = openStudentReviewModal;
+window.closeStudentReviewModal = closeStudentReviewModal;
+window.handleCustomerStudentReviewSubmit = handleCustomerStudentReviewSubmit;
+
 
 
 

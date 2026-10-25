@@ -313,6 +313,33 @@
           </div>
         </div>
 
+        <!-- Student Cross-Department Customer Evaluation Task Alert & Card -->
+        <div id="studentCustomerTaskSection" style="display: none; margin-bottom: 1.5rem;">
+          <div class="card" style="border-left: 4px solid #f59e0b; padding: 1.25rem 1.5rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(234, 88, 12, 0.05));">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+              <div>
+                <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.75rem;">
+                  <i class="fa-solid fa-users-viewfinder"></i> ASSIGNED CUSTOMER EVALUATION MISSION
+                </span>
+                <h3 style="margin: 0.4rem 0 0.2rem; font-size: 1.2rem; font-weight: 800; color: var(--text-main);">
+                  You Are The Target Customer For <span id="custTaskTargetDeptName">Assigned Department</span> Projects
+                </h3>
+                <p id="custTaskInstructions" style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45;">
+                  Your division has been selected by faculty to test prototypes, review market viability, and record genuine customer ratings for the following teams.
+                </p>
+              </div>
+              <span id="custTaskCountBadge" class="badge-count" style="background: #f59e0b; color: white; padding: 0.35rem 0.75rem; border-radius: 999px; font-weight: 800; font-size: 0.8rem;">
+                0 Projects To Review
+              </span>
+            </div>
+
+            <!-- List of target projects available for student to evaluate -->
+            <div id="studentCustomerProjectsList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+              <!-- Injected by renderStudentCustomerTaskSection -->
+            </div>
+          </div>
+        </div>
+
         <!-- State B: Student / Leader HAS a group -->
         <div id="hasGroupState" class="group-details-container" style="display: none;">
           <!-- Top Group Hero Bar -->
@@ -941,7 +968,10 @@
             <h2>Faculty Evaluation Dashboard</h2>
             <p class="section-desc">Review every step of each project in full detail, assign marks out of 50, and filter by your assigned Departments &amp; Batches.</p>
           </div>
-          <div class="admin-toolbar">
+          <div class="admin-toolbar" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openCustomerAssignmentModal()">
+              <i class="fa-solid fa-users-viewfinder"></i> Assign Customer Review Division
+            </button>
             <button class="btn btn-outline btn-sm" onclick="loadAdminGroups(true)">
               <i class="fa-solid fa-rotate"></i> Refresh Groups
             </button>
@@ -1225,6 +1255,33 @@
             </form>
           </div>
         </div>
+
+        <!-- 3. Cross-Department Customer Review Assignments Manager -->
+        <div class="card" style="margin-top: 1.5rem; padding: 1.75rem; border-top: 4px solid #f59e0b;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.35rem;">
+                <i class="fa-solid fa-users-viewfinder" style="color: #f59e0b; font-size: 1.35rem;"></i>
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Cross-Department Customer Review Assignments</h3>
+              </div>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0; max-width: 760px;">
+                Assign a specific Department &amp; Division (e.g. ECS Div A) to act as target customers and review the project prototypes created by another Department/Division (e.g. Instrumentation Batch B1).
+              </p>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openCustomerAssignmentModal()">
+              <i class="fa-solid fa-plus-circle"></i> Create New Customer Assignment
+            </button>
+          </div>
+
+          <div id="facultyCustomerAssignmentsList">
+            <!-- Rendered by renderCustomerAssignments -->
+            <div style="text-align: center; padding: 2rem 1rem; background: var(--bg-hover); border-radius: var(--radius-md); border: 1px dashed var(--border-color); color: var(--text-muted); font-size: 0.9rem;">
+              <i class="fa-solid fa-people-arrows" style="font-size: 2rem; color: #f59e0b; margin-bottom: 0.65rem; display: block;"></i>
+              No cross-department customer review assignments configured yet.<br>
+              Click <strong>"Create New Customer Assignment"</strong> to pair a customer division with another department's projects.
+            </div>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -1321,6 +1378,155 @@
             <button type="button" class="btn btn-outline" onclick="closeEditGroupModal()">Cancel</button>
             <button type="submit" class="btn btn-primary" id="saveEditGroupBtn">
               <i class="fa-solid fa-floppy-disk"></i> Save Group Details
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Customer Review Assignment Modal (Faculty Cross-Department Config) -->
+    <div id="customerAssignmentModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card" style="max-width: 620px; width: 95%; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.2rem;">
+            <i class="fa-solid fa-users-viewfinder" style="color: #f59e0b;"></i> Assign Customer Review Division
+          </h3>
+          <button type="button" class="btn-icon" onclick="closeCustomerAssignmentModal()" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 1.25rem;">
+          Pair an entire Division / Batch to act as <strong>external customer evaluators</strong> for another department's projects. The assigned customer students will test prototypes and submit live ratings &amp; customer reviews.
+        </p>
+
+        <form id="customerAssignmentForm" onsubmit="handleSaveCustomerAssignment(event); return false;">
+          <!-- 1. Customer Reviewer Selector -->
+          <div style="background: var(--bg-hover); padding: 1rem; border-radius: var(--radius-md); border: 1.5px solid #f59e0b; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
+              <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.75rem;">1. CUSTOMER DIVISION (REVIEWERS)</span>
+              <strong style="font-size: 0.88rem; color: var(--text-main);">Who will test &amp; review?</strong>
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="form-group">
+                <label for="assignReviewerDept" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Reviewer Department</label>
+                <select id="assignReviewerDept" onchange="handleAssignReviewerDeptChange()">
+                  <option value="ECS">Electronics and Computer Science (ECS)</option>
+                  <option value="Instrumentation">Instrumentation Engineering</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="assignReviewerDivGroup">
+                <label for="assignReviewerDiv" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Reviewer Division</label>
+                <select id="assignReviewerDiv">
+                  <option value="Div A">Division A</option>
+                  <option value="Div B">Division B</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="assignReviewerBatchGroup" style="display: none;">
+                <label for="assignReviewerBatch" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Reviewer Batch</label>
+                <select id="assignReviewerBatch">
+                  <option value="All Batches">All Batches (B1 &amp; B2)</option>
+                  <option value="Batch 1">Batch 1 (B1)</option>
+                  <option value="Batch 2">Batch 2 (B2)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Target Project Division Selector -->
+          <div style="background: var(--bg-hover); padding: 1rem; border-radius: var(--radius-md); border: 1.5px solid var(--primary); margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
+              <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-weight: 800; font-size: 0.75rem;">2. TARGET PROJECTS (TO BE EVALUATED)</span>
+              <strong style="font-size: 0.88rem; color: var(--text-main);">Whose projects will be reviewed?</strong>
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="form-group">
+                <label for="assignTargetDept" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Target Department</label>
+                <select id="assignTargetDept" onchange="handleAssignTargetDeptChange()">
+                  <option value="Instrumentation" selected>Instrumentation Engineering</option>
+                  <option value="ECS">Electronics and Computer Science (ECS)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="assignTargetDivGroup" style="display: none;">
+                <label for="assignTargetDiv" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Target Division</label>
+                <select id="assignTargetDiv">
+                  <option value="All Divisions">All Divisions (A &amp; B)</option>
+                  <option value="Div A">Division A</option>
+                  <option value="Div B">Division B</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="assignTargetBatchGroup">
+                <label for="assignTargetBatch" style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.35rem;">Target Batch</label>
+                <select id="assignTargetBatch">
+                  <option value="All Batches">All Batches (B1 &amp; B2)</option>
+                  <option value="Batch 1" selected>Batch 1 (B1)</option>
+                  <option value="Batch 2">Batch 2 (B2)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Review Prompt / Instructions -->
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="assignReviewPrompt" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Evaluation Brief / Instructions for Customer Students</label>
+            <input type="text" id="assignReviewPrompt" value="Test the product prototype, verify usability, and provide feedback as target customers." required placeholder="e.g. Test prototype usability, pricing, and value proposition">
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1rem; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-outline" onclick="closeCustomerAssignmentModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveCustomerAssignmentBtn">
+              <i class="fa-solid fa-link"></i> Confirm &amp; Activate Customer Assignment
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Student Submit Customer Review Modal (When evaluating assigned projects) -->
+    <div id="studentReviewModal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card" style="max-width: 540px; width: 95%; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem;">
+            <i class="fa-solid fa-star" style="color: #f59e0b;"></i> Submit Customer Review &amp; Rating
+          </h3>
+          <button type="button" class="btn-icon" onclick="closeStudentReviewModal()" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div style="background: var(--bg-hover); padding: 0.85rem 1rem; border-radius: var(--radius-md); border-left: 3px solid var(--primary); margin-bottom: 1.25rem;">
+          <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Evaluating Venture</div>
+          <h4 id="evalTargetGroupName" style="margin: 0.15rem 0 0.25rem; font-size: 1.05rem; font-weight: 800;">Target Project Name</h4>
+          <span id="evalTargetGroupMeta" style="font-size: 0.8rem; color: var(--text-secondary);">Instrumentation • Batch 1</span>
+        </div>
+
+        <form id="submitStudentReviewForm" onsubmit="handleCustomerStudentReviewSubmit(event); return false;">
+          <input type="hidden" id="evalTargetGroupId">
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="evalReviewRating" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Customer Star Rating (1 to 5 Stars)</label>
+            <select id="evalReviewRating" required style="font-weight: 700; color: #b45309;">
+              <option value="5">★★★★★ (5 Stars - Outstanding Product &amp; Market Need)</option>
+              <option value="4" selected>★★★★☆ (4 Stars - Highly Feasible Prototype)</option>
+              <option value="3">★★★☆☆ (3 Stars - Good Idea, Needs Polish)</option>
+              <option value="2">★★☆☆☆ (2 Stars - Significant Market Gaps)</option>
+              <option value="1">★☆☆☆☆ (1 Star - Weak Solution Proposition)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="evalReviewComment" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Detailed Customer Testimonial &amp; Constructive Feedback</label>
+            <textarea id="evalReviewComment" rows="3" required placeholder="How effective was this team's solution? Would you use this product? What can be improved in their pitch or prototype?"></textarea>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1rem; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-outline" onclick="closeStudentReviewModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="evalSubmitReviewBtn">
+              <i class="fa-solid fa-paper-plane"></i> Submit Customer Review
             </button>
           </div>
         </form>
@@ -1428,6 +1634,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="/firebase-config.js?v=4"></script>
-  <script src="/app.js?v=27"></script>
+  <script src="/app.js?v=28"></script>
 </body>
 </html>
