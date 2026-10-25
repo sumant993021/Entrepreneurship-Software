@@ -1040,6 +1040,36 @@
           </div>
         </div>
 
+        <!-- Cross-Department Customer Review Mission Progress & Control Bar -->
+        <div id="facultyCustomerMissionTracker" style="display: none; margin-bottom: 1.25rem;">
+          <div class="card" style="border-left: 4px solid #f59e0b; padding: 1.25rem 1.5rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(99, 102, 241, 0.04));">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+                  <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.75rem;">
+                    <i class="fa-solid fa-users-viewfinder"></i> ACTIVE CUSTOMER REVIEW MISSIONS
+                  </span>
+                  <span class="live-pill" style="font-size: 0.7rem; background-color: white;"><span class="pulse-dot"></span> Live Tracking</span>
+                </div>
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: var(--text-main);">
+                  Customer Evaluation Progress &amp; Completion Status
+                </h3>
+                <small style="color: var(--text-secondary); font-size: 0.8rem;">
+                  Monitor how many customer reviews and ratings have been submitted by the assigned customer division. You can stop or deactivate missions anytime.
+                </small>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" onclick="openCustomerAssignmentModal()" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-plus-circle"></i> Add Another Assignment
+              </button>
+            </div>
+
+            <!-- Injected progress cards for each active customer assignment -->
+            <div id="facultyCustomerMissionCardsList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
+              <!-- Injected by renderFacultyCustomerMissionTracker -->
+            </div>
+          </div>
+        </div>
+
         <!-- Department, Class, Division, and Batch Filters for Faculty -->
         <div class="filter-bar-card">
           <div class="filter-controls">
@@ -1634,6 +1664,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="/firebase-config.js?v=4"></script>
-  <script src="/app.js?v=29"></script>
+  <script src="/app.js?v=30"></script>
 </body>
 </html>

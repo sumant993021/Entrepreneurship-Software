@@ -3302,6 +3302,7 @@ async function loadAdminGroups(showToastNotice = false) {
       allAdminGroups = filteredGroups;
       updateFacultyGroupCounters(totalAllGroupsList, filteredGroups);
       renderAdminGroups(allAdminGroups);
+      renderFacultyCustomerMissionTracker(activeCustomerAssignments);
 
       if (!adminGroupsFirestoreUnsub) {
         listenToFacultyGroupsFirestore();
@@ -4817,11 +4818,11 @@ async function handleSaveCustomerAssignment(e) {
   }
 }
 
-// Load and Render Customer Assignments in Faculty Settings
+// Load and Render Customer Assignments in Faculty Dashboard & Settings
 async function loadCustomerAssignments() {
   if (!currentUser || currentUser.role !== "faculty") return;
   const listContainer = document.getElementById("facultyCustomerAssignmentsList");
-  if (!listContainer) return;
+  const trackerContainer = document.getElementById("facultyCustomerMissionTracker");
 
   if (IS_PURE_FIREBASE && window.firestoreDb) {
     try {
@@ -4831,7 +4832,6 @@ async function loadCustomerAssignments() {
       }
 
       activeCustomerAssignmentsUnsub = window.firestoreDb.collection("customer_assignments")
-        .where("active", "==", true)
         .onSnapshot((snapshot) => {
           const list = [];
           snapshot.forEach(doc => {
@@ -4839,6 +4839,7 @@ async function loadCustomerAssignments() {
           });
           activeCustomerAssignments = list;
           renderCustomerAssignments(list);
+          renderFacultyCustomerMissionTracker(list);
         }, (err) => console.warn("Customer assignments sync notice:", err));
       return;
     } catch (err) {
@@ -4847,8 +4848,10 @@ async function loadCustomerAssignments() {
   }
 
   renderCustomerAssignments(activeCustomerAssignments);
+  renderFacultyCustomerMissionTracker(activeCustomerAssignments);
 }
 
+// Render in Faculty Settings Tab
 function renderCustomerAssignments(assignments) {
   const listContainer = document.getElementById("facultyCustomerAssignmentsList");
   if (!listContainer) return;
@@ -4873,9 +4876,10 @@ function renderCustomerAssignments(assignments) {
         const targetMeta = a.target_department === "ECS"
           ? `${a.target_division}`
           : `${a.target_batch}`;
+        const isStopped = (a.active === false);
 
         return `
-          <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 1.15rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: var(--shadow-sm);">
+          <div style="background: var(--bg-card); border: 1.5px solid ${isStopped ? 'var(--border-color)' : '#f59e0b'}; opacity: ${isStopped ? '0.75' : '1'}; border-radius: var(--radius-md); padding: 1.15rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: var(--shadow-sm);">
             <div style="flex: 1; min-width: 280px;">
               <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
                 <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.78rem;">
@@ -4885,17 +4889,35 @@ function renderCustomerAssignments(assignments) {
                 <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-weight: 800; font-size: 0.78rem;">
                   <i class="fa-solid fa-rocket"></i> TARGET: ${escapeHtml(a.target_department)} (${escapeHtml(targetMeta)})
                 </span>
+                ${isStopped ? `
+                  <span class="role-tag" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); font-weight: 800; font-size: 0.75rem;">
+                    <i class="fa-solid fa-circle-stop"></i> Stopped / Closed
+                  </span>
+                ` : `
+                  <span class="role-tag" style="background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 800; font-size: 0.75rem;">
+                    <i class="fa-solid fa-circle-play"></i> Active &amp; Reviewing
+                  </span>
+                `}
               </div>
               <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
                 <strong>Evaluation Brief:</strong> ${escapeHtml(a.instructions || 'Review prototypes as target customers')}
               </p>
               <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.35rem;">
-                Configured by: ${escapeHtml(a.assigned_by_name || 'Faculty')} • Active Evaluator Allocation
+                Configured by: ${escapeHtml(a.assigned_by_name || 'Faculty')}
               </small>
             </div>
-            <div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              ${isStopped ? `
+                <button type="button" class="btn btn-outline btn-sm" onclick="resumeCustomerAssignment('${a.id}')" style="color: var(--success); border-color: rgba(16, 185, 129, 0.4); font-size: 0.78rem;">
+                  <i class="fa-solid fa-play"></i> Re-Activate
+                </button>
+              ` : `
+                <button type="button" class="btn btn-outline btn-sm" onclick="stopCustomerAssignment('${a.id}')" style="color: #b45309; border-color: rgba(245, 158, 11, 0.4); font-size: 0.78rem;">
+                  <i class="fa-solid fa-stop"></i> Stop Mission
+                </button>
+              `}
               <button type="button" class="btn btn-outline btn-sm" onclick="removeCustomerAssignment('${a.id}')" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3); font-size: 0.78rem;">
-                <i class="fa-solid fa-trash-can"></i> Deactivate
+                <i class="fa-solid fa-trash-can"></i> Delete
               </button>
             </div>
           </div>
@@ -4905,23 +4927,208 @@ function renderCustomerAssignments(assignments) {
   `;
 }
 
+// Render Progress Tracker in Faculty Evaluation Dashboard
+function renderFacultyCustomerMissionTracker(assignments) {
+  const trackerSection = document.getElementById("facultyCustomerMissionTracker");
+  const cardsList = document.getElementById("facultyCustomerMissionCardsList");
+  if (!trackerSection || !cardsList) return;
+
+  if (!assignments || assignments.length === 0) {
+    trackerSection.style.display = "none";
+    return;
+  }
+
+  // Calculate review completion metrics for each assignment from allAdminGroups
+  const groups = allAdminGroups || [];
+
+  trackerSection.style.display = "block";
+  cardsList.innerHTML = assignments.map(a => {
+    const isStopped = (a.active === false);
+
+    // Filter target projects for this mission
+    const targetGroups = groups.filter(g => {
+      if (g.department !== a.target_department) return false;
+      if (a.target_department === "ECS") {
+        if (a.target_division && a.target_division !== "All Divisions" && g.division !== a.target_division) return false;
+      } else {
+        if (a.target_batch && a.target_batch !== "All Batches" && g.batch !== a.target_batch) return false;
+      }
+      return true;
+    });
+
+    // Count how many total reviews were submitted by customer students from the reviewer division
+    let reviewedGroupsCount = 0;
+    let totalCustomerReviewsCount = 0;
+    let ratingSum = 0;
+
+    targetGroups.forEach(g => {
+      const revs = g.customer_reviews || [];
+      const matchingRevs = revs.filter(r => {
+        if (r.reviewer_dept && r.reviewer_dept !== a.reviewer_department) return false;
+        if (a.reviewer_department === "ECS" && a.reviewer_division && a.reviewer_division !== "All Divisions") {
+          if (r.reviewer_div && r.reviewer_div !== a.reviewer_division) return false;
+        }
+        if (a.reviewer_department === "Instrumentation" && a.reviewer_batch && a.reviewer_batch !== "All Batches") {
+          if (r.reviewer_batch && r.reviewer_batch !== a.reviewer_batch) return false;
+        }
+        return true;
+      });
+
+      if (matchingRevs.length > 0) {
+        reviewedGroupsCount++;
+        totalCustomerReviewsCount += matchingRevs.length;
+        matchingRevs.forEach(r => { ratingSum += (r.rating || 5); });
+      }
+    });
+
+    const targetTotal = targetGroups.length;
+    const progressPercent = targetTotal > 0 ? Math.min(100, Math.round((reviewedGroupsCount / targetTotal) * 100)) : 0;
+    const avgCustRating = totalCustomerReviewsCount > 0 ? (ratingSum / totalCustomerReviewsCount).toFixed(1) : "—";
+
+    const revMeta = a.reviewer_department === "ECS" ? a.reviewer_division : a.reviewer_batch;
+    const targetMeta = a.target_department === "ECS" ? a.target_division : a.target_batch;
+
+    return `
+      <div style="background: var(--bg-card); border: 1.5px solid ${isStopped ? 'var(--border-color)' : '#f59e0b'}; border-radius: var(--radius-md); padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm);">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.65rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                <span class="role-tag" style="background: #fef3c7; color: #b45309; font-weight: 800; font-size: 0.75rem;">
+                  <i class="fa-solid fa-user-tag"></i> CUSTOMER: ${escapeHtml(a.reviewer_department)} (${escapeHtml(revMeta)})
+                </span>
+                <i class="fa-solid fa-arrow-right" style="color: var(--text-muted); font-size: 0.75rem;"></i>
+                <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); font-weight: 800; font-size: 0.75rem;">
+                  <i class="fa-solid fa-rocket"></i> ${escapeHtml(a.target_department)} (${escapeHtml(targetMeta)})
+                </span>
+              </div>
+            </div>
+
+            ${isStopped ? `
+              <span class="role-tag" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.72rem; font-weight: 800;">
+                <i class="fa-solid fa-circle-stop"></i> Stopped
+              </span>
+            ` : `
+              <span class="role-tag" style="background: rgba(16, 185, 129, 0.1); color: var(--success); font-size: 0.72rem; font-weight: 800;">
+                <i class="fa-solid fa-circle-play"></i> In Progress
+              </span>
+            `}
+          </div>
+
+          <!-- Progress Metrics & Bar -->
+          <div style="margin: 0.75rem 0 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-bottom: 0.35rem;">
+              <strong style="color: var(--text-main);">
+                <i class="fa-solid fa-bars-progress" style="color: #f59e0b;"></i> Projects Evaluated: ${reviewedGroupsCount} of ${targetTotal}
+              </strong>
+              <strong style="color: ${progressPercent >= 100 ? 'var(--success)' : '#b45309'};">${progressPercent}% Complete</strong>
+            </div>
+
+            <!-- Progress Bar -->
+            <div style="width: 100%; height: 8px; background: var(--bg-hover); border-radius: 999px; overflow: hidden; border: 1px solid var(--border-color);">
+              <div style="width: ${progressPercent}%; height: 100%; background: ${progressPercent >= 100 ? 'var(--success)' : 'linear-gradient(90deg, #f59e0b, #eab308)'}; transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Summary Badges -->
+          <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color);">
+            <div><i class="fa-solid fa-comments" style="color: var(--primary);"></i> <strong>${totalCustomerReviewsCount}</strong> Customer Reviews</div>
+            <div><i class="fa-solid fa-star" style="color: #f59e0b;"></i> Avg Rating: <strong>${avgCustRating}★</strong></div>
+          </div>
+        </div>
+
+        <!-- Stop / Resume / Delete Action Controls -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; pt-2; border-top: 1px solid var(--border-color); padding-top: 0.65rem;">
+          <small style="color: var(--text-muted); font-size: 0.75rem;">
+            ${isStopped ? 'Students cannot submit further reviews' : 'Students are actively reviewing'}
+          </small>
+
+          <div style="display: flex; gap: 0.4rem;">
+            ${isStopped ? `
+              <button type="button" class="btn btn-outline btn-sm" onclick="resumeCustomerAssignment('${a.id}')" style="color: var(--success); border-color: rgba(16, 185, 129, 0.4); font-size: 0.75rem; padding: 0.25rem 0.55rem;">
+                <i class="fa-solid fa-play"></i> Re-Open Task
+              </button>
+            ` : `
+              <button type="button" class="btn btn-outline btn-sm" onclick="stopCustomerAssignment('${a.id}')" style="color: #b45309; border-color: rgba(245, 158, 11, 0.4); font-size: 0.75rem; padding: 0.25rem 0.55rem;">
+                <i class="fa-solid fa-stop"></i> Stop Task
+              </button>
+            `}
+            <button type="button" class="btn btn-outline btn-sm" onclick="removeCustomerAssignment('${a.id}')" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 0.25rem 0.55rem;">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Stop / Pause a Customer Review Assignment
+async function stopCustomerAssignment(assignmentId) {
+  if (!confirm("Stop this customer review mission? The customer students will no longer see this task in their dashboard.")) return;
+
+  try {
+    if (IS_PURE_FIREBASE && window.firestoreDb && assignmentId) {
+      await window.firestoreDb.collection("customer_assignments").doc(assignmentId).update({
+        active: false,
+        stopped_at: new Date().toISOString()
+      });
+      showToast("Customer review task stopped successfully.", "info");
+      loadCustomerAssignments();
+      return;
+    }
+
+    const a = activeCustomerAssignments.find(x => x.id === assignmentId);
+    if (a) a.active = false;
+    renderCustomerAssignments(activeCustomerAssignments);
+    renderFacultyCustomerMissionTracker(activeCustomerAssignments);
+    showToast("Customer review task stopped.", "info");
+  } catch (err) {
+    showToast("Error stopping assignment: " + err.message, "error");
+  }
+}
+
+// Resume an inactive Customer Review Assignment
+async function resumeCustomerAssignment(assignmentId) {
+  try {
+    if (IS_PURE_FIREBASE && window.firestoreDb && assignmentId) {
+      await window.firestoreDb.collection("customer_assignments").doc(assignmentId).update({
+        active: true,
+        resumed_at: new Date().toISOString()
+      });
+      showToast("Customer review task resumed and activated for students!", "success");
+      loadCustomerAssignments();
+      return;
+    }
+
+    const a = activeCustomerAssignments.find(x => x.id === assignmentId);
+    if (a) a.active = true;
+    renderCustomerAssignments(activeCustomerAssignments);
+    renderFacultyCustomerMissionTracker(activeCustomerAssignments);
+    showToast("Customer review task resumed.", "success");
+  } catch (err) {
+    showToast("Error resuming assignment: " + err.message, "error");
+  }
+}
+
 // Remove / Deactivate a Customer Assignment
 async function removeCustomerAssignment(assignmentId) {
-  if (!confirm("Are you sure you want to deactivate this customer review assignment?")) return;
+  if (!confirm("Are you sure you want to permanently delete this customer review assignment?")) return;
 
   try {
     if (IS_PURE_FIREBASE && window.firestoreDb && assignmentId) {
       await window.firestoreDb.collection("customer_assignments").doc(assignmentId).delete();
-      showToast("Customer review assignment removed.", "success");
+      showToast("Customer review assignment deleted.", "success");
       loadCustomerAssignments();
       return;
     }
 
     activeCustomerAssignments = activeCustomerAssignments.filter(a => a.id !== assignmentId);
     renderCustomerAssignments(activeCustomerAssignments);
-    showToast("Customer review assignment removed.", "success");
+    renderFacultyCustomerMissionTracker(activeCustomerAssignments);
+    showToast("Customer review assignment deleted.", "success");
   } catch (err) {
-    showToast("Error deactivating assignment: " + err.message, "error");
+    showToast("Error deleting assignment: " + err.message, "error");
   }
 }
 
@@ -5217,8 +5424,10 @@ window.handleAssignReviewerDeptChange = handleAssignReviewerDeptChange;
 window.handleAssignTargetDeptChange = handleAssignTargetDeptChange;
 window.handleSaveCustomerAssignment = handleSaveCustomerAssignment;
 window.loadCustomerAssignments = loadCustomerAssignments;
-window.renderCustomerAssignments = renderCustomerAssignments;
 window.removeCustomerAssignment = removeCustomerAssignment;
+window.stopCustomerAssignment = stopCustomerAssignment;
+window.resumeCustomerAssignment = resumeCustomerAssignment;
+window.renderFacultyCustomerMissionTracker = renderFacultyCustomerMissionTracker;
 window.loadStudentCustomerReviewTasks = loadStudentCustomerReviewTasks;
 window.renderStudentCustomerTasks = renderStudentCustomerTasks;
 window.openStudentReviewModal = openStudentReviewModal;
