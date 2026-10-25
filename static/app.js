@@ -277,8 +277,10 @@ async function checkAuth() {
               // Try finding user by email in users collection
               const q = await window.firestoreDb.collection("users").where("email", "==", fbUser.email.toLowerCase()).limit(1).get();
               if (!q.empty) {
-                currentUser = q.docs[0].data();
+                currentUser = { ...q.docs[0].data(), id: fbUser.uid };
                 localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+                // Ensure doc under fbUser.uid exists
+                await window.firestoreDb.collection("users").doc(fbUser.uid).set(currentUser, { merge: true }).catch(() => {});
               }
             }
           } catch (e) {

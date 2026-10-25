@@ -65,7 +65,7 @@ service cloud.firestore {
     // Cross-Department Customer Review Assignments
     match /customer_assignments/{assignmentId} {
       allow read: if isAuthenticated();
-      allow write: if isFaculty();
+      allow write: if isAuthenticated();
     }
 
     // Customer reviews submitted by assigned students/customers
