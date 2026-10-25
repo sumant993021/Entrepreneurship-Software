@@ -4533,6 +4533,7 @@ async function handleChangeFacultyEmail(e) {
 
 function renderAdminUsers(users) {
   const tbody = document.getElementById("userTableBody");
+  if (!tbody) return;
   tbody.innerHTML = users.map(u => {
     const isSelf = u.id === currentUser.id;
 
