@@ -1147,12 +1147,96 @@
       <section id="adminUsersTab" class="content-section tab-content" style="display: none;">
         <div class="section-title-bar">
           <div>
-            <h2>Faculty Administration &amp; Allocations</h2>
-            <p class="section-desc">Inspect registered faculty assignments and student allocations.</p>
+            <h2>Faculty Account Settings &amp; Profile</h2>
+            <p class="section-desc">Manage your faculty login credentials, view your registered department allocations, and inspect system users.</p>
           </div>
         </div>
 
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+          <!-- 1. Faculty Details Card -->
+          <div class="card" style="padding: 1.75rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-color);">
+              <div style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #8b5cf6); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800;" id="facultySettingsAvatar">
+                F
+              </div>
+              <div>
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="facultySettingsName">Faculty Member</h3>
+                <span class="role-tag" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.3rem;">
+                  <i class="fa-solid fa-chalkboard-user"></i> Verified Faculty Evaluator
+                </span>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div>
+                <span style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Current Login Email</span>
+                <div style="font-size: 0.95rem; font-weight: 600; color: var(--text-main); margin-top: 0.15rem; display: flex; align-items: center; gap: 0.5rem;" id="facultySettingsCurrentEmail">
+                  <i class="fa-regular fa-envelope" style="color: var(--primary);"></i> loading...
+                </div>
+              </div>
+
+              <div>
+                <span style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Faculty User ID</span>
+                <code style="font-size: 0.82rem; background: var(--bg-hover); padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.15rem;" id="facultySettingsUserId">—</code>
+              </div>
+
+              <div>
+                <span style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.35rem;">Registered Department Allocations</span>
+                <div id="facultySettingsAllocationsList" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <!-- Injected via renderFacultySettingsProfile -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Change Faculty Login Email Card -->
+          <div class="card" style="padding: 1.75rem; border-top: 4px solid var(--primary);">
+            <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem;">
+              <i class="fa-solid fa-envelope-circle-check" style="color: var(--primary); font-size: 1.35rem;"></i>
+              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Change Dashboard Login Email</h3>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 1.25rem;">
+              Update your registered college email address to sign in to your faculty dashboard. You will use this new email for future logins.
+            </p>
+
+            <form id="changeFacultyEmailForm" onsubmit="handleChangeFacultyEmail(event); return false;">
+              <div class="form-group" style="margin-bottom: 1rem;">
+                <label for="newFacultyEmail" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">New Login Email Address</label>
+                <div class="input-with-icon">
+                  <i class="fa-regular fa-envelope"></i>
+                  <input type="email" id="newFacultyEmail" required placeholder="new.email@college.edu">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="confirmFacultyPassword" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">Confirm Current Password</label>
+                <div class="input-with-icon">
+                  <i class="fa-solid fa-lock"></i>
+                  <input type="password" id="confirmFacultyPassword" required placeholder="Enter your current password">
+                </div>
+                <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+                  Required by Firebase Authentication to verify identity before updating login email.
+                </small>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="changeFacultyEmailBtn">
+                <i class="fa-solid fa-check"></i> Update Dashboard Login Email
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 3. Registered Users & Allocations Table -->
         <div class="table-card">
+          <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700;">System User Roles &amp; Allocations Directory</h3>
+              <small style="color: var(--text-muted);">Inspect all registered faculties and students in the platform.</small>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="loadAdminUsers()">
+              <i class="fa-solid fa-rotate"></i> Refresh Users
+            </button>
+          </div>
           <div class="table-responsive">
             <table class="user-management-table">
               <thead>
@@ -1371,6 +1455,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="/firebase-config.js?v=4"></script>
-  <script src="/app.js?v=25"></script>
+  <script src="/app.js?v=26"></script>
 </body>
 </html>

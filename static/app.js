@@ -4376,6 +4376,7 @@ async function loadAdminUsers() {
         snapshot.forEach(doc => {
           users.push({ id: doc.id, ...doc.data() });
         });
+        renderFacultySettingsProfile();
         renderAdminUsers(users);
       }, (err) => console.warn("Firestore admin users live sync notice:", err));
     } catch (err) {
@@ -4395,9 +4396,138 @@ async function loadAdminUsers() {
     }
 
     const users = await res.json();
+    renderFacultySettingsProfile();
     renderAdminUsers(users);
   } catch (err) {
     showToast(err.message, "error");
+  }
+}
+
+// Render logged-in faculty details in Faculty Settings Tab
+function renderFacultySettingsProfile() {
+  if (!currentUser || currentUser.role !== "faculty") return;
+
+  const avatar = document.getElementById("facultySettingsAvatar");
+  const nameEl = document.getElementById("facultySettingsName");
+  const emailEl = document.getElementById("facultySettingsCurrentEmail");
+  const uidEl = document.getElementById("facultySettingsUserId");
+  const allocList = document.getElementById("facultySettingsAllocationsList");
+
+  if (avatar) avatar.textContent = (currentUser.name || "F").charAt(0).toUpperCase();
+  if (nameEl) nameEl.textContent = currentUser.name || "Faculty Member";
+  if (emailEl) {
+    emailEl.innerHTML = `<i class="fa-regular fa-envelope" style="color: var(--primary);"></i> ${escapeHtml(currentUser.email || "No email on record")}`;
+  }
+  if (uidEl) uidEl.textContent = currentUser.id || "N/A";
+
+  if (allocList) {
+    if (currentUser.assignments && currentUser.assignments.length > 0) {
+      allocList.innerHTML = currentUser.assignments.map(a => {
+        const isEcs = a.department === "ECS";
+        const batches = isEcs ? "All Batches" : (a.batches || []).join(", ");
+        return `
+          <div style="background: var(--bg-hover); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 0.85rem;">
+            <strong>${escapeHtml(a.department)}</strong> • ${escapeHtml(a.student_class)} • ${escapeHtml(a.division)}
+            <span style="color: var(--text-muted); font-size: 0.8rem;">[${escapeHtml(batches)}]</span>
+          </div>
+        `;
+      }).join("");
+    } else {
+      allocList.innerHTML = `<em style="color: var(--text-muted); font-size: 0.85rem;">Universal Access (All Departments &amp; Divisions Assigned)</em>`;
+    }
+  }
+}
+
+// Handle Faculty Updating their Login Email Address
+async function handleChangeFacultyEmail(e) {
+  if (e) e.preventDefault();
+  if (!currentUser || currentUser.role !== "faculty") return;
+
+  const newEmailInput = document.getElementById("newFacultyEmail");
+  const passwordInput = document.getElementById("confirmFacultyPassword");
+  const submitBtn = document.getElementById("changeFacultyEmailBtn");
+
+  const newEmail = newEmailInput ? newEmailInput.value.trim().toLowerCase() : "";
+  const currentPassword = passwordInput ? passwordInput.value : "";
+
+  if (!newEmail) {
+    showToast("Please enter a valid new email address.", "error");
+    return;
+  }
+  if (!currentPassword) {
+    showToast("Please confirm your current password to verify identity.", "error");
+    return;
+  }
+  if (newEmail === (currentUser.email || "").toLowerCase()) {
+    showToast("The new email must be different from your current email.", "error");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Updating Email...`;
+  }
+
+  try {
+    if (IS_PURE_FIREBASE && window.firebaseAuth) {
+      const fbUser = window.firebaseAuth.currentUser;
+      if (!fbUser) throw new Error("No active Firebase session. Please re-login.");
+
+      // 1. Re-authenticate user to satisfy Firebase credential freshness requirements
+      const credential = firebase.auth.EmailAuthProvider.credential(fbUser.email, currentPassword);
+      await fbUser.reauthenticateWithCredential(credential);
+
+      // 2. Update email in Firebase Auth
+      await fbUser.updateEmail(newEmail);
+
+      // 3. Update email in Firestore users collection
+      if (window.firestoreDb) {
+        await window.firestoreDb.collection("users").doc(currentUser.id).update({
+          email: newEmail,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // 4. Update local state
+      currentUser.email = newEmail;
+      localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+      renderFacultySettingsProfile();
+
+      showToast(`Login email successfully updated to: ${newEmail}! Use this email for your next login.`, "success");
+      if (newEmailInput) newEmailInput.value = "";
+      if (passwordInput) passwordInput.value = "";
+      return;
+    }
+
+    // Backend REST API fallback
+    const res = await fetch(`${API_BASE}/api/admin/change-email`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ new_email: newEmail, current_password: currentPassword })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to update email address");
+
+    currentUser.email = newEmail;
+    localStorage.setItem("edmg_user", JSON.stringify(currentUser));
+    renderFacultySettingsProfile();
+    showToast(data.message || "Email updated successfully!", "success");
+    if (newEmailInput) newEmailInput.value = "";
+    if (passwordInput) passwordInput.value = "";
+  } catch (err) {
+    console.error("Change faculty email error:", err);
+    let msg = err.message;
+    if (err.code === "auth/wrong-password") msg = "Incorrect current password. Please verify and try again.";
+    if (err.code === "auth/email-already-in-use") msg = "This email is already in use by another account.";
+    if (err.code === "auth/invalid-email") msg = "The new email address format is invalid.";
+    if (err.code === "auth/requires-recent-login") msg = "Security timeout. Please sign out and sign back in to change your email.";
+    showToast("Error updating email: " + msg, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> Update Dashboard Login Email`;
+    }
   }
 }
 
@@ -4563,6 +4693,8 @@ window.closeDeleteModal = closeDeleteModal;
 window.executeDeleteGroup = executeDeleteGroup;
 window.setFacultyDeptFilter = setFacultyDeptFilter;
 window.updateFacultyGroupCounters = updateFacultyGroupCounters;
+window.handleChangeFacultyEmail = handleChangeFacultyEmail;
+window.renderFacultySettingsProfile = renderFacultySettingsProfile;
 
 
 
